@@ -59,6 +59,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,12 +96,10 @@ fun DashboardScreen(
 
                     val jsonPayload = JSONObject().apply {
                         put("reference_id", "APX-${System.currentTimeMillis()}")
-                        put("policy", "high_risk_biometric_kyc")
+                        put("policy", "strict")
                         put("expected", JSONObject().apply {
                             put("name", fullName.trim())
                             put("dob", dob.trim())
-                            put("email", email.trim())
-                            put("phone", phone.trim())
                         })
                     }
 
@@ -118,7 +117,9 @@ fun DashboardScreen(
                     }
 
                     val respJson = JSONObject(bodyString)
-                    respJson.getString("flow_url")
+                    val baseFlowUrl = respJson.getString("flow_url")
+                    val fullFlowUrl = "$baseFlowUrl&name=${URLEncoder.encode(fullName.trim(), "UTF-8")}&dob=${URLEncoder.encode(dob.trim(), "UTF-8")}&email=${URLEncoder.encode(email.trim(), "UTF-8")}&phone=${URLEncoder.encode(phone.trim(), "UTF-8")}"
+                    fullFlowUrl
                 }
 
                 isStartingKyc = false

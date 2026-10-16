@@ -224,6 +224,20 @@ video, canvas {
   aspect-ratio: 4/3;
   object-fit: cover;
 }
+#selfieVid {
+  transform: scaleX(-1);
+}
+.face-oval-guide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 170px;
+  height: 220px;
+  border: 2px dashed rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  pointer-events: none;
+}
 canvas { display: none; }
 
 /* ── Recording badge ── */
@@ -888,15 +902,15 @@ function renderIdUpload() {
     <!-- File picker -->
     <div id="idFileMode">
       <div class="upload-zone" style="position:relative;cursor:pointer">
-        <input type="file" id="idInput" accept="image/*" onchange="onIdFile(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+        <input type="file" id="idInput" accept="image/*" capture="environment" onchange="onIdFile(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
         <div class="uz-icon">${SVGS.fileUpload}</div>
-        <p><b>Tap to take photo or choose document</b></p>
-        <p style="font-size:11px;margin-top:4px">Camera · Photos · Files supported</p>
+        <p><b>Tap to open camera and take ID photo</b></p>
+        <p style="font-size:11px;margin-top:4px">Opens camera directly · Or tap Gallery below</p>
       </div>
 
       <div class="btn-row" style="margin-top:12px">
         <div class="btn btn-primary" style="position:relative;cursor:pointer;overflow:hidden">
-          <input type="file" id="idCamBtnInput" accept="image/*" onchange="onIdFile(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+          <input type="file" id="idCamBtnInput" accept="image/*" capture="environment" onchange="onIdFile(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
           ${SVGS.camera} Camera
         </div>
         <div class="btn btn-secondary" style="position:relative;cursor:pointer;overflow:hidden">
@@ -912,7 +926,7 @@ function renderIdUpload() {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
         <span class="file-ok" id="idPreviewLbl">${SVGS.checkSmall} Document ready</span>
         <div class="btn btn-secondary btn-sm" style="position:relative;cursor:pointer;overflow:hidden">
-          <input type="file" accept="image/*" onchange="onIdFile(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+          <input type="file" accept="image/*" capture="environment" onchange="onIdFile(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
           ${SVGS.refresh} Change
         </div>
       </div>
@@ -969,8 +983,9 @@ function renderSelfie() {
     <p class="subtitle">Look directly at the camera. Ensure your face is centered and well-lit. Remove glasses if possible.</p>
 
     <!-- Live stream container (when WebRTC is supported) -->
-    <div id="selfieStreamBox" class="hidden" style="position:relative">
+    <div id="selfieStreamBox" class="hidden" style="position:relative;overflow:hidden;border-radius:14px">
       <video id="selfieVid" autoplay muted playsinline></video>
+      <div class="face-oval-guide"></div>
       <div id="recIndicator" class="hidden" style="position:absolute;top:10px;right:10px;background:rgba(220,38,38,.85);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;display:flex;align-items:center;gap:6px">
         <span style="width:7px;height:7px;border-radius:50%;background:#fff;animation:pulse 1s infinite;display:inline-block"></span>
         REC
@@ -981,29 +996,29 @@ function renderSelfie() {
     <!-- Direct camera card -->
     <div id="selfieNativeBox">
       <div class="upload-zone" style="padding:28px 16px;position:relative;cursor:pointer">
-        <input type="file" id="selfieZoneInput" accept="image/*" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+        <input type="file" id="selfieZoneInput" accept="image/*" capture="user" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
         <div style="width:60px;height:60px;border-radius:50%;background:rgba(37,99,235,0.08);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
           ${SVGS.userCircle}
         </div>
-        <p><b>Tap to take your live selfie</b></p>
-        <p style="font-size:12px;margin-top:4px">Opens camera or photos</p>
+        <p><b>Tap to open front camera</b></p>
+        <p style="font-size:12px;margin-top:4px">Takes a live selfie with front camera</p>
       </div>
 
       <div style="position:relative;margin-top:14px">
         <div class="btn btn-primary" style="position:relative;cursor:pointer;overflow:hidden">
-          <input type="file" id="selfieBtnInput" accept="image/*" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+          <input type="file" id="selfieBtnInput" accept="image/*" capture="user" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
           ${SVGS.camera} Open Camera & Take Selfie
         </div>
       </div>
 
-      <div style="display:flex;gap:10px;margin-top:10px">
+      <div class="btn-row" style="margin-top:10px">
         <button class="btn btn-secondary btn-sm" style="flex:1" onclick="tryStartWebRtc()">
           ${SVGS.activity} Live Viewfinder
         </button>
-        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="openExternalBrowser()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          Open in Chrome
-        </button>
+        <div class="btn btn-secondary btn-sm" style="flex:1;position:relative;cursor:pointer;overflow:hidden">
+          <input type="file" id="selfieGalleryInput" accept="image/*" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+          ${SVGS.folder} Gallery
+        </div>
       </div>
     </div>
 
@@ -1013,7 +1028,7 @@ function renderSelfie() {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
         <span class="file-ok">${SVGS.checkSmall} Selfie ready</span>
         <div class="btn btn-secondary btn-sm" style="position:relative;cursor:pointer;overflow:hidden">
-          <input type="file" accept="image/*" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+          <input type="file" accept="image/*" capture="user" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
           ${SVGS.refresh} Retake
         </div>
       </div>

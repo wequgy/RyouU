@@ -6,15 +6,8 @@ import {
 import { NativeModules, Platform } from 'react-native';
 
 export function getDetectedServerUrl(): string {
-  try {
-    const scriptURL = NativeModules.SourceCode?.scriptURL || '';
-    const match = scriptURL.match(/^https?:\/\/([^/:]+)/);
-    if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
-      return `http://${match[1]}:8000`;
-    }
-  } catch (_) {}
-  // Default to laptop LAN IP (works on physical phones and devices on local network)
-  return 'http://192.168.0.103:8000';
+  // Always prefer secure HTTPS Cloudflare tunnel so Android Chromium WebView enables WebRTC camera
+  return 'https://feels-thrown-happen-professional.trycloudflare.com';
 }
 
 export interface UnCloneVerificationSession {

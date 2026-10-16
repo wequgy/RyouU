@@ -80,6 +80,20 @@ export const KycModalScreen: React.FC<KycModalScreenProps> = ({
     }
   };
 
+  const requestHardwarePermissions = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        ]);
+        console.log('[KycModalScreen] Hardware permissions result:', granted);
+      } catch (pErr) {
+        console.warn('PermissionsAndroid error:', pErr);
+      }
+    }
+  };
+
   // Reset state and test connection when modal opens
   useEffect(() => {
     if (visible) {
@@ -94,6 +108,7 @@ export const KycModalScreen: React.FC<KycModalScreenProps> = ({
       setUserFullName(user.fullName || '');
       setUserEmail(user.email || '');
       testBackendConnection(serverUrl);
+      requestHardwarePermissions();
     }
   }, [visible]);
 
@@ -220,6 +235,11 @@ export const KycModalScreen: React.FC<KycModalScreenProps> = ({
     try {
       const data = JSON.parse(event.nativeEvent.data);
       console.log('[KycModalScreen] WebView message:', data);
+
+      if (data.type === 'open_browser') {
+        handleOpenInBrowser();
+        return;
+      }
 
       if (data.type === 'kyc_complete') {
         const isSuccess = data.status === 'completed' || data.status === 'needs_review';
@@ -375,24 +395,12 @@ export const KycModalScreen: React.FC<KycModalScreenProps> = ({
                 allowsInlineMediaPlayback={true}
                 mediaPlaybackRequiresUserAction={false}
                 mediaCapturePermissionGrantType="grant"
+                allowsProtectedMedia={true}
+                androidLayerType="hardware"
+                geolocationEnabled={true}
                 mixedContentMode="always"
                 allowFileAccess={true}
                 originWhitelist={['*']}
-                onPermissionRequest={(event: any) => {
-                  try {
-                    if (typeof event?.grant === 'function') {
-                      event.grant(event.resources);
-                    } else if (typeof event?.nativeEvent?.grant === 'function') {
-                      event.nativeEvent.grant(event.nativeEvent.resources);
-                    } else if (typeof event?.nativeEvent?.request?.grant === 'function') {
-                      event.nativeEvent.request.grant(event.nativeEvent.request.resources);
-                    } else if (typeof event?.request?.grant === 'function') {
-                      event.request.grant(event.request.resources);
-                    }
-                  } catch (pErr) {
-                    console.warn('onPermissionRequest grant error:', pErr);
-                  }
-                }}
                 onMessage={handleWebViewMessage}
                 startInLoadingState={true}
                 renderLoading={() => (
@@ -575,6 +583,18 @@ export const KycModalScreen: React.FC<KycModalScreenProps> = ({
                     <Text style={styles.serverCurrentText}>{serverUrl}</Text>
 
                     <View style={styles.serverPresetsRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.presetBtn,
+                          serverUrl === 'https://feels-thrown-happen-professional.trycloudflare.com' && styles.presetBtnActive,
+                        ]}
+                        onPress={() => handleServerChange('https://feels-thrown-happen-professional.trycloudflare.com')}
+                      >
+                        <Text style={[styles.presetBtnText, serverUrl === 'https://feels-thrown-happen-professional.trycloudflare.com' && styles.presetBtnTextActive]}>
+                          HTTPS (Live Stream)
+                        </Text>
+                      </TouchableOpacity>
+
                       <TouchableOpacity
                         style={[
                           styles.presetBtn,

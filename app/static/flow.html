@@ -632,6 +632,25 @@ async function api(method, path, body, isForm = false) {
   return r.json().catch(() => ({}));
 }
 
+async function safeGetMedia(constraints) {
+  try {
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    }
+  } catch (e) {
+    console.warn('mediaDevices.getUserMedia warning:', e);
+  }
+  try {
+    const legacy = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+    if (legacy) {
+      return await new Promise((res, rej) => legacy.call(navigator, constraints, res, rej));
+    }
+  } catch (e) {
+    console.warn('legacy getUserMedia warning:', e);
+  }
+  return null;
+}
+
 function setStep(n) {
   currentStep = n;
   // Progress bar
@@ -866,90 +885,44 @@ function renderIdUpload() {
     <h2>Upload your ID</h2>
     <p class="subtitle">Submit a clear photo of your government-issued ID — Aadhaar, PAN, Passport, or Driving Licence.</p>
 
-    <div class="btn-row">
-      <button class="btn btn-secondary btn-sm" id="tabFileBtn" onclick="showIdTab('file')">${SVGS.folder} Gallery</button>
-      <button class="btn btn-secondary btn-sm" id="tabCamBtn"  onclick="showIdTab('cam')">${SVGS.camera} Camera</button>
-    </div>
-
     <!-- File picker -->
     <div id="idFileMode">
-      <div class="upload-zone" onclick="$('idInput').click()">
-        <input type="file" id="idInput" accept="image/*" onchange="onIdFile(this)" style="display:none"/>
+      <div class="upload-zone" style="position:relative;cursor:pointer">
+        <input type="file" id="idInput" accept="image/*" onchange="onIdFile(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
         <div class="uz-icon">${SVGS.fileUpload}</div>
-        <p><b>Tap to browse or drop document</b></p>
-        <p style="font-size:11px;margin-top:4px">JPG · PNG · WebP supported</p>
+        <p><b>Tap to take photo or choose document</b></p>
+        <p style="font-size:11px;margin-top:4px">Camera · Photos · Files supported</p>
       </div>
-    </div>
 
-    <!-- Camera picker -->
-    <div id="idCamMode" class="hidden">
-      <video id="idVid" autoplay muted playsinline></video>
-      <button class="btn btn-primary" style="margin-top:12px" onclick="captureIdCam()">${SVGS.camera} Snap Photo</button>
+      <div class="btn-row" style="margin-top:12px">
+        <div class="btn btn-primary" style="position:relative;cursor:pointer;overflow:hidden">
+          <input type="file" id="idCamBtnInput" accept="image/*" onchange="onIdFile(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+          ${SVGS.camera} Camera
+        </div>
+        <div class="btn btn-secondary" style="position:relative;cursor:pointer;overflow:hidden">
+          <input type="file" id="idGalleryBtnInput" accept="image/*" onchange="onIdFile(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+          ${SVGS.folder} Gallery
+        </div>
+      </div>
     </div>
 
     <!-- Preview -->
     <div id="idPreviewBox" class="hidden">
       <img id="idPreviewImg"/>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
         <span class="file-ok" id="idPreviewLbl">${SVGS.checkSmall} Document ready</span>
-        <button class="btn btn-secondary btn-sm" onclick="resetId()">${SVGS.refresh} Change</button>
+        <div class="btn btn-secondary btn-sm" style="position:relative;cursor:pointer;overflow:hidden">
+          <input type="file" accept="image/*" onchange="onIdFile(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+          ${SVGS.refresh} Change
+        </div>
       </div>
+      <button class="btn btn-primary" id="idNextBtn" style="margin-top:14px" onclick="uploadId()">Continue to Selfie</button>
     </div>
-
-    <canvas id="idCanvas" style="display:none"></canvas>
 
     <div class="info-box">
       ${SVGS.info}
       <span>All four corners must be visible. Face photo on the card must be clear and legible.</span>
-    </div>
-
-    <button class="btn btn-primary" id="idNextBtn" onclick="uploadId()" disabled>Continue to Selfie</button>`;
-
-  showIdTab('file');
-}
-
-function showIdTab(mode) {
-  stopIdCam();
-  const fileMode = $('idFileMode'), camMode = $('idCamMode');
-  const fileBtn = $('tabFileBtn'), camBtn = $('tabCamBtn');
-  if (mode === 'cam') {
-    fileMode.classList.add('hidden'); camMode.classList.remove('hidden');
-    camBtn.classList.replace('btn-secondary','btn-primary');
-    fileBtn.classList.replace('btn-primary','btn-secondary');
-    startIdCam();
-  } else {
-    camMode.classList.add('hidden'); fileMode.classList.remove('hidden');
-    fileBtn.classList.replace('btn-secondary','btn-primary');
-    camBtn.classList.replace('btn-primary','btn-secondary');
-  }
-}
-
-async function startIdCam() {
-  const tryCam = async (constraints) => await safeGetMedia(constraints);
-  state.idStream = await tryCam({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } } })
-                || await tryCam({ video: { facingMode: 'environment' } })
-                || await tryCam({ video: true });
-  if (state.idStream) {
-    $('idVid').srcObject = state.idStream;
-  } else {
-    toast('Live camera stream not supported in this view. Use Gallery to select or capture.', 'err', 4500);
-    showIdTab('file');
-  }
-}
-
-function stopIdCam() {
-  if (state.idStream) { state.idStream.getTracks().forEach(t => t.stop()); state.idStream = null; }
-}
-
-function captureIdCam() {
-  const vid = $('idVid'), canvas = $('idCanvas');
-  canvas.width = vid.videoWidth || 1280; canvas.height = vid.videoHeight || 960;
-  canvas.getContext('2d').drawImage(vid, 0, 0);
-  canvas.toBlob(blob => {
-    state.idFile = new File([blob], 'id_cam.jpg', { type: 'image/jpeg' });
-    showIdPreview(URL.createObjectURL(blob), 'id_cam.jpg');
-    stopIdCam();
-  }, 'image/jpeg', 0.95);
+    </div>`;
 }
 
 function onIdFile(inp) {
@@ -964,15 +937,12 @@ function showIdPreview(url, name) {
   $('idPreviewLbl').innerHTML = SVGS.checkSmall + ' ' + (name || 'Document ready');
   $('idPreviewBox').classList.remove('hidden');
   $('idFileMode').classList.add('hidden');
-  $('idCamMode').classList.add('hidden');
-  $('idNextBtn').disabled = false;
 }
 
 function resetId() {
   state.idFile = null;
   $('idPreviewBox').classList.add('hidden');
-  $('idNextBtn').disabled = true;
-  showIdTab('file');
+  $('idFileMode').classList.remove('hidden');
 }
 
 async function uploadId() {
@@ -981,10 +951,9 @@ async function uploadId() {
   const fd = new FormData();
   fd.append('file', state.idFile, state.idFile.name || 'id.jpg');
   try {
-    stopIdCam();
     await api('POST', `/flow/${VID}/upload/id_image`, fd, true);
     toast('ID document uploaded successfully', 'ok');
-    setTimeout(renderSelfie, 500);
+    setTimeout(renderSelfie, 400);
   } catch (e) {
     toast('Upload failed: ' + e.message, 'err');
     btn.disabled = false; btn.textContent = 'Continue to Selfie';
@@ -1006,24 +975,36 @@ function renderSelfie() {
         <span style="width:7px;height:7px;border-radius:50%;background:#fff;animation:pulse 1s infinite;display:inline-block"></span>
         REC
       </div>
-      <button class="btn btn-primary" id="captureBtn" style="margin-top:14px" onclick="captureSelfie()">${SVGS.camera} Capture Selfie</button>
+      <button class="btn btn-primary" id="captureBtn" style="margin-top:14px" onclick="captureSelfie()">${SVGS.camera} Snap Photo</button>
     </div>
 
-    <!-- Direct camera card (seamless on mobile WebViews) -->
+    <!-- Direct camera card -->
     <div id="selfieNativeBox">
-      <div class="upload-zone" style="padding:28px 16px" onclick="$('nativeSelfieInput').click()">
-        <input type="file" accept="image/*" capture="user" id="nativeSelfieInput" onchange="onNativeSelfieCaptured(this)" style="display:none"/>
+      <div class="upload-zone" style="padding:28px 16px;position:relative;cursor:pointer">
+        <input type="file" id="selfieZoneInput" accept="image/*" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
         <div style="width:60px;height:60px;border-radius:50%;background:rgba(37,99,235,0.08);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
           ${SVGS.userCircle}
         </div>
         <p><b>Tap to take your live selfie</b></p>
-        <p style="font-size:12px;margin-top:4px">Opens your front-facing camera</p>
+        <p style="font-size:12px;margin-top:4px">Opens camera or photos</p>
       </div>
 
-      <label class="btn btn-primary" style="margin-top:14px;cursor:pointer">
-        <input type="file" accept="image/*" capture="user" onchange="onNativeSelfieCaptured(this)" style="display:none"/>
-        ${SVGS.camera} Open Camera & Take Selfie
-      </label>
+      <div style="position:relative;margin-top:14px">
+        <div class="btn btn-primary" style="position:relative;cursor:pointer;overflow:hidden">
+          <input type="file" id="selfieBtnInput" accept="image/*" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+          ${SVGS.camera} Open Camera & Take Selfie
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="tryStartWebRtc()">
+          ${SVGS.activity} Live Viewfinder
+        </button>
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="openExternalBrowser()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Open in Chrome
+        </button>
+      </div>
     </div>
 
     <!-- Captured photo preview -->
@@ -1031,10 +1012,10 @@ function renderSelfie() {
       <img id="selfiePreviewImg" style="width:100%;max-height:280px;border-radius:14px;object-fit:cover;border:1.5px solid var(--border)"/>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
         <span class="file-ok">${SVGS.checkSmall} Selfie ready</span>
-        <label class="btn btn-secondary btn-sm" style="cursor:pointer">
-          <input type="file" accept="image/*" capture="user" onchange="onNativeSelfieCaptured(this)" style="display:none"/>
+        <div class="btn btn-secondary btn-sm" style="position:relative;cursor:pointer;overflow:hidden">
+          <input type="file" accept="image/*" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
           ${SVGS.refresh} Retake
-        </label>
+        </div>
       </div>
       <button class="btn btn-success" id="selfieNextBtn" style="margin-top:14px" onclick="goLiveness()">Continue to Liveness</button>
     </div>
@@ -1044,57 +1025,93 @@ function renderSelfie() {
   startMainSession();
 }
 
-async function startMainSession() {
-  const tryMedia = async (constraints) => await safeGetMedia(constraints);
+function attachStreamToVideo(stream) {
+  const vid = $('selfieVid');
+  if (!vid) return;
+  vid.srcObject = stream;
+  vid.setAttribute('playsinline', 'true');
+  vid.setAttribute('webkit-playsinline', 'true');
+  vid.muted = true;
+  vid.onloadedmetadata = () => {
+    vid.play().catch(e => console.warn('vid play notice:', e));
+    const streamBox = $('selfieStreamBox');
+    const nativeBox = $('selfieNativeBox');
+    if (streamBox) streamBox.classList.remove('hidden');
+    if (nativeBox) nativeBox.classList.add('hidden');
+  };
+  const streamBox = $('selfieStreamBox');
+  const nativeBox = $('selfieNativeBox');
+  if (streamBox) streamBox.classList.remove('hidden');
+  if (nativeBox) nativeBox.classList.add('hidden');
+
   try {
-    state.mainStream = await tryMedia({ video: { facingMode: 'user', width: { ideal: 1280 } }, audio: true })
-                    || await tryMedia({ video: { facingMode: 'user' }, audio: true })
-                    || await tryMedia({ video: true, audio: true })
-                    || await tryMedia({ video: { facingMode: 'user' } })
-                    || await tryMedia({ video: true });
+    if (typeof MediaRecorder !== 'undefined') {
+      const mime = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+      state.videoRec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      state.videoChunks = [];
+      state.videoRec.ondataavailable = e => { if (e.data.size > 0) state.videoChunks.push(e.data); };
+      state.videoRec.start(500);
 
-    if (state.mainStream && $('selfieVid')) {
-      $('selfieStreamBox').classList.remove('hidden');
-      $('selfieNativeBox').classList.add('hidden');
-      $('selfieVid').srcObject = state.mainStream;
+      const ind = $('recIndicator');
+      if (ind) ind.classList.remove('hidden');
 
-      const track = state.mainStream.getVideoTracks()[0];
-      if (track) {
-        state.cameraLabel = track.label || '';
-        state.cameraSettings = track.getSettings() || {};
-        if (/obs|manycam|droidcam|iriun|xsplit|virtual|snap|mmhmm/i.test(state.cameraLabel)) {
-          toast('Virtual camera or software filter detected', 'err', 6000);
-        }
-      }
+      state.recSecs = 0;
+      if (state.recTimer) clearInterval(state.recTimer);
+      state.recTimer = setInterval(() => {
+        state.recSecs++;
+        const lbl = $('recTimerLbl');
+        if (lbl) lbl.textContent = state.recSecs + 's';
+      }, 1000);
+    }
+  } catch (recErr) {
+    console.warn('Video recorder notice:', recErr);
+  }
+}
 
-      // Start video recording if MediaRecorder is available
-      try {
-        if (typeof MediaRecorder !== 'undefined') {
-          const mime = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
-          state.videoRec = new MediaRecorder(state.mainStream, { mimeType: mime });
-          state.videoChunks = [];
-          state.videoRec.ondataavailable = e => { if (e.data.size > 0) state.videoChunks.push(e.data); };
-          state.videoRec.start(500);
-
-          const ind = $('recIndicator');
-          if (ind) ind.classList.remove('hidden');
-
-          state.recSecs = 0;
-          state.recTimer = setInterval(() => { state.recSecs++; }, 1000);
-        }
-      } catch (recErr) {
-        console.warn('Video recorder notice:', recErr);
-      }
+async function startMainSession() {
+  try {
+    const stream = await safeGetMedia({ video: { facingMode: { ideal: 'user' } } })
+                || await safeGetMedia({ video: true });
+    if (stream) {
+      state.mainStream = stream;
+      attachStreamToVideo(stream);
     }
   } catch (_) {
-    // Seamless native capture fallback (selfieNativeBox is already visible)
+    // Graceful fallback to native camera controls
   }
+}
+
+async function tryStartWebRtc() {
+  toast('Requesting live camera stream…', 'info');
+  try {
+    const stream = await safeGetMedia({ video: { facingMode: { ideal: 'user' } } })
+                || await safeGetMedia({ video: true });
+    if (stream) {
+      state.mainStream = stream;
+      attachStreamToVideo(stream);
+      toast('Camera connected!', 'ok');
+    } else {
+      toast('Direct viewfinder not supported in this view. Use the Camera button above or open in Chrome.', 'err', 4500);
+    }
+  } catch (e) {
+    toast('Camera notice: ' + (e.message || 'Permission needed'), 'err', 4000);
+  }
+}
+
+function openExternalBrowser() {
+  try {
+    if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'open_browser' }));
+      return;
+    }
+  } catch (_) {}
+  window.open(location.href, '_blank');
 }
 
 function captureSelfie() {
   const vid = $('selfieVid'), canvas = $('selfieCanvas');
   if (!vid || !vid.videoWidth) {
-    const input = $('nativeSelfieInput');
+    const input = $('selfieBtnInput') || $('selfieZoneInput');
     if (input) input.click();
     return;
   }
@@ -1119,7 +1136,7 @@ function onNativeSelfieCaptured(input) {
   $('selfiePreviewBox').classList.remove('hidden');
   $('selfieNativeBox').classList.add('hidden');
   $('selfieStreamBox').classList.add('hidden');
-  toast('Selfie captured successfully', 'ok');
+  toast('Selfie photo captured successfully', 'ok');
 }
 
 async function goLiveness() {
@@ -1459,8 +1476,9 @@ window.addEventListener('blur', () => state.focusLossCount++);
 /* ──────────── Expose onclick handlers ──────────── */
 Object.assign(window, {
   submitDetails, sendEmailOtp, verifyEmailOtp, sendPhoneOtp, verifyPhoneOtp,
-  showIdTab, captureIdCam, onIdFile, resetId, uploadId,
-  captureSelfie, onNativeSelfieCaptured, goLiveness, doneHead, doneWave, startMic, stopMic,
+  onIdFile, resetId, uploadId,
+  captureSelfie, onNativeSelfieCaptured, tryStartWebRtc, openExternalBrowser,
+  goLiveness, doneHead, doneWave, startMic, stopMic,
   submitAll, notifyApp,
 });
 

@@ -46,6 +46,10 @@ class Settings:
     smtp_user: str
     smtp_pass: str
     smtp_from: str
+    twilio_account_sid: str
+    twilio_auth_token: str
+    twilio_from_number: str
+    fast2sms_api_key: str
     webhook_max_attempts: int
     webhook_backoff_s: float
     challenge_ttl_s: int
@@ -86,6 +90,10 @@ def get_settings() -> Settings:
         smtp_user=os.environ.get("SMTP_USER", ""),
         smtp_pass=os.environ.get("SMTP_PASS", ""),
         smtp_from=os.environ.get("SMTP_FROM", ""),
+        twilio_account_sid=os.environ.get("TWILIO_ACCOUNT_SID", ""),
+        twilio_auth_token=os.environ.get("TWILIO_AUTH_TOKEN", ""),
+        twilio_from_number=os.environ.get("TWILIO_FROM_NUMBER", ""),
+        fast2sms_api_key=os.environ.get("FAST2SMS_API_KEY", ""),
         webhook_max_attempts=int(_num("WEBHOOK_MAX_ATTEMPTS", 3)),
         webhook_backoff_s=_num("WEBHOOK_BACKOFF_S", 1.0),
         challenge_ttl_s=int(_num("CHALLENGE_TTL_S", 120)),

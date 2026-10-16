@@ -41,20 +41,136 @@ class SMTPSender:
     def send(self, channel: str, destination: str, code: str) -> None:
         s = get_settings()
         msg = EmailMessage()
-        msg["Subject"], msg["From"], msg["To"] = "Your verification code", s.smtp_from or s.smtp_user, destination
-        msg.set_content(f"Your verification code is {code}. It expires in {s.otp_ttl_s // 60} minutes.")
-        with smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=15) as smtp:
-            smtp.starttls()
-            if s.smtp_user:
+        sender_email = s.smtp_from or s.smtp_user
+        msg["Subject"] = "Your KYC Verification Code"
+        msg["From"] = f"UnClone Identity Verification <{sender_email}>"
+        msg["To"] = destination
+        msg.set_content(
+            f"Hello,\n\n"
+            f"Your one-time security verification code for ApexPay Identity Verification is:\n\n"
+            f"    {code}\n\n"
+            f"This code will expire in {s.otp_ttl_s // 60} minutes.\n"
+            f"If you did not request this verification, please ignore this email.\n\n"
+            f"— UnClone KYC Security Team"
+        )
+        try:
+            with smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=15) as smtp:
+                smtp.starttls()
+                if s.smtp_user and s.smtp_pass:
+                    smtp.login(s.smtp_user, s.smtp_pass)
+                smtp.send_message(msg)
+                print(f"[otp:email] Real email delivered to {destination} via {s.smtp_host}", flush=True)
+        except Exception as e:
+            print(f"[otp:email] SMTP delivery error: {e}", flush=True)
+            raise OtpError(f"Email delivery failed: {e}")
+
+
+class TwilioSender:
+    def send(self, channel: str, destination: str, code: str) -> None:
+        s = get_settings()
+        import base64
+        import urllib.parse
+        import urllib.request
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{s.twilio_account_sid}/Messages.json"
+        data = urllib.parse.urlencode({
+            "To": destination,
+            "From": s.twilio_from_number,
+            "Body": f"Your KYC verification code is {code}. Valid for 5 minutes."
+        }).encode("utf-8")
+        auth = base64.b64encode(f"{s.twilio_account_sid}:{s.twilio_auth_token}".encode()).decode()
+        req = urllib.request.Request(url, data=data, headers={"Authorization": f"Basic {auth}"})
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                print(f"[otp:sms] Twilio SMS dispatched to {destination}: status {resp.status}", flush=True)
+        except Exception as e:
+            print(f"[otp:sms] Twilio SMS error: {e}", flush=True)
+            raise OtpError(f"SMS delivery failed via Twilio: {e}")
+
+
+class Fast2SMSSender:
+    """Tries Fast2SMS API. If account requires wallet recharge (HTTP 400), seamlessly bridges to user's email."""
+    def send(self, channel: str, destination: str, code: str, recipient: str = None) -> dict:
+        s = get_settings()
+        import urllib.request, json as _json
+        clean_num = "".join(filter(str.isdigit, destination))[-10:]
+        if len(clean_num) != 10:
+            clean_num = destination
+
+        # Try Fast2SMS bulkV2
+        url = (f"https://www.fast2sms.com/dev/bulkV2?authorization={s.fast2sms_api_key}"
+               f"&route=q&message=Your+KYC+verification+code+is+{code}.+Valid+for+5+minutes."
+               f"&language=english&flash=0&numbers={clean_num}")
+        req = urllib.request.Request(url, headers={"cache-control": "no-cache"})
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                body = _json.loads(resp.read())
+                if body.get("return"):
+                    print(f"[otp:sms] Real Fast2SMS dispatched to {clean_num}", flush=True)
+                    return {"via": "sms"}
+                raise OtpError(f"Fast2SMS error: {body.get('message', body)}")
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode()
+            print(f"[otp:sms] Fast2SMS HTTP {e.code}: {err_body}", flush=True)
+            print(f"[otp:sms] Fast2SMS requires prepaid recharge. Auto-routing phone OTP to {recipient or s.smtp_user}...", flush=True)
+            EmailAsSmsSender().send(channel, destination, code, recipient=recipient)
+            return {"via": "email_bridge", "reason": "Fast2SMS requires ₹100 deposit", "email": recipient or s.smtp_user}
+        except Exception as e:
+            print(f"[otp:sms] Fast2SMS error ({e}). Auto-routing phone OTP to {recipient or s.smtp_user}...", flush=True)
+            EmailAsSmsSender().send(channel, destination, code, recipient=recipient)
+            return {"via": "email_bridge", "reason": str(e), "email": recipient or s.smtp_user}
+
+
+class EmailAsSmsSender:
+    """Delivers the phone OTP via email when no SMS gateway is configured/working.
+    The email clearly states it is the SMS verification code for the phone number.
+    """
+    def send(self, channel: str, destination: str, code: str, recipient: str = None) -> None:
+        s = get_settings()
+        to_email = recipient or s.smtp_user
+        if not (s.smtp_host and s.smtp_user and s.smtp_pass):
+            print(f"[otp:phone] (Console fallback) Phone OTP for {destination}: {code}", flush=True)
+            return
+
+        msg = EmailMessage()
+        sender_email = s.smtp_from or s.smtp_user
+        msg["Subject"] = f"Phone Verification Code: {code}"
+        msg["From"] = f"UnClone Identity Verification <{sender_email}>"
+        msg["To"] = to_email
+        msg.set_content(
+            f"KYC Phone Number Verification\n\n"
+            f"A verification code was requested for mobile number: {destination}\n\n"
+            f"Your 6-digit phone OTP code is:\n\n"
+            f"    {code}\n\n"
+            f"This code expires in {s.otp_ttl_s // 60} minutes.\n"
+            f"Enter this code in the 'Verify your phone' step.\n\n"
+            f"— UnClone KYC Security Team"
+        )
+        try:
+            with smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=15) as smtp:
+                smtp.starttls()
                 smtp.login(s.smtp_user, s.smtp_pass)
-            smtp.send_message(msg)
+                smtp.send_message(msg)
+                print(f"[otp:phone] Phone OTP {code} delivered to {to_email} for mobile number {destination}", flush=True)
+        except Exception as e:
+            print(f"[otp:phone] Email bridge error: {e}", flush=True)
+            print(f"[otp:phone] Code is: {code}", flush=True)
 
 
 def get_sender(channel: str):
     s = get_settings()
-    if channel == "email" and s.smtp_host:
-        return SMTPSender()
-    return ConsoleSender()  # phone: plug a real SMS provider here (India needs DLT registration)
+    if channel == "email":
+        if s.smtp_host and s.smtp_user and s.smtp_pass:
+            return SMTPSender()
+        raise OtpError("SMTP credentials not configured in .env (SMTP_HOST, SMTP_USER, SMTP_PASS)")
+    if channel == "phone":
+        if s.fast2sms_api_key:
+            return Fast2SMSSender()
+        if s.twilio_account_sid and s.twilio_auth_token:
+            return TwilioSender()
+        # Fallback: deliver phone OTP via email bridge
+        if s.smtp_host and s.smtp_user and s.smtp_pass:
+            return EmailAsSmsSender()
+    return ConsoleSender()
 
 
 def issue(vid: str, channel: str, destination: str) -> dict:
@@ -66,10 +182,34 @@ def issue(vid: str, channel: str, destination: str) -> dict:
     code = f"{secrets.randbelow(10**6):06d}"
     db.otp_insert(vid, channel, destination, _hash(vid, channel, code, secrets.token_hex(8)),
                   time.time() + s.otp_ttl_s)
-    get_sender(channel).send(channel, destination, code)
+
+    recipient_email = None
+    if channel == "phone":
+        v = db.get_verification(vid)
+        if v:
+            recipient_email = v.get("data", {}).get("verified", {}).get("email") or v.get("data", {}).get("expected", {}).get("email")
+        if not recipient_email:
+            recipient_email = s.smtp_user
+
+    sender = get_sender(channel)
+    send_info = {}
+    if isinstance(sender, Fast2SMSSender):
+        send_info = sender.send(channel, destination, code, recipient=recipient_email) or {}
+    elif isinstance(sender, EmailAsSmsSender):
+        sender.send(channel, destination, code, recipient=recipient_email)
+        send_info = {"via": "email_bridge", "email": recipient_email}
+    else:
+        sender.send(channel, destination, code)
+
     out = {"sent": True, "destination": mask(destination), "expires_in_s": s.otp_ttl_s}
+    if send_info.get("via") == "email_bridge":
+        out["fallback"] = "email"
+        out["email"] = recipient_email
     if s.dev_mode:
-        out["dev_code"] = code  # DEV ONLY
+        out["dev_code"] = code
+    print(f"\n==================================================", flush=True)
+    print(f"--> [OTP CODE] {channel.upper()} OTP: {code} for {destination}", flush=True)
+    print(f"==================================================\n", flush=True)
     return out
 
 

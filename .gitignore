@@ -21,11 +21,6 @@ data/*.sqlite3
 data/*.db
 data/uploads/
 
-# Local verification sample media
-/clip.mp4
-/id.jpeg
-/other_person.jpeg
-/selfie1.jpg
 
 # ML model and cache files
 *.onnx
@@ -34,8 +29,21 @@ data/uploads/
 *.safetensors
 .cache/
 
-# Editor and operating system files
+# Archives and temporary files
+*.zip
+*.tar.gz
+*.log
+
+# Editor and AI tools
 .vscode/
 .idea/
+.claude/
 .DS_Store
 Thumbs.db
+
+# Sample media and temporary uploads
+/clip.mp4
+/id.jpeg
+/other_person.jpeg
+/selfie1.jpg
+app/static/sample_*

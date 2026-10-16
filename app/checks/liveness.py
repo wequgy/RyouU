@@ -22,8 +22,10 @@ def _judge(item: dict, res: dict, ctx: CheckContext):
         return ("pass", "hand wave ok") if ok else ("fail", "hand wave not detected or face lost")
     if kind == "phrase":
         text = ctx.data.get("spoken_transcripts", {}).get("phrase")
-        if not text and ctx.files.get("phrase_audio"):
-            text = sd.TRANSCRIBER(ctx.files["phrase_audio"], None)
+        if not text:
+            audio_f = ctx.files.get("phrase_audio") or ctx.files.get("challenge_audio")
+            if audio_f:
+                text = sd.TRANSCRIBER(audio_f, None)
         if not text:
             return "uncertain", "no phrase audio to check"
         return ("pass", "digits match") if item["expected_code"] in spoken_to_digits(text) \

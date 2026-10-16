@@ -9,8 +9,10 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import challenges, db, pipeline, webhooks
 from .checks import otp  # noqa: F401  (also registers all checks via package import)
@@ -21,10 +23,11 @@ from .policies import POLICIES, get_policy, steps_for
 from .security import hash_key, new_token, require_flow, require_tenant
 
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-AUDIO_EXT = {".wav", ".mp3", ".m4a", ".webm", ".ogg", ".flac"}
+VIDEO_EXT = {".mp4", ".mov", ".webm", ".avi", ".mkv", ".flv"}
+AUDIO_EXT = {".wav", ".mp4", ".m4a", ".webm", ".ogg", ".flac"}
 UPLOAD_KINDS = {"id_image": IMAGE_EXT, "selfie": IMAGE_EXT, "challenge_audio": AUDIO_EXT,
                 "phrase_audio": AUDIO_EXT, "spoken_name": AUDIO_EXT, "spoken_dob": AUDIO_EXT,
-                "spoken_id_last4": AUDIO_EXT}
+                "spoken_id_last4": AUDIO_EXT, "challenge_video": VIDEO_EXT}
 TRANSCRIPT_KEYS = {"name", "dob", "id_last4", "phrase"}
 
 
@@ -37,8 +40,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="KYC Verification Service", version="0.1.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins, allow_methods=["*"],
-                   allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
+                   allow_headers=["*"], expose_headers=["*"])
+
+_STATIC_DIR = Path(__file__).parent / "static"
+_FLOW_HTML = _STATIC_DIR / "flow.html"
+
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 
 @app.get("/healthz")
@@ -46,9 +54,17 @@ def healthz():
     return {"ok": True, "time": time.time()}
 
 
+@app.get("/flow", response_class=HTMLResponse, include_in_schema=False)
+def flow_page():
+    """Serve the hosted KYC verification UI. The flow URL opens this page in a WebView."""
+    if not _FLOW_HTML.exists():
+        raise HTTPException(404, "Flow page not found. Run setup or check app/static/flow.html.")
+    return HTMLResponse(_FLOW_HTML.read_text(encoding="utf-8"))
+
+
 # ======================= tenant (customer) API =======================
 @app.post("/v1/verifications", status_code=201)
-def create_verification(body: CreateVerification, tenant: dict = Depends(require_tenant)):
+def create_verification(request: Request, body: CreateVerification, tenant: dict = Depends(require_tenant)):
     s = get_settings()
     policy = body.policy or tenant["default_policy"]
     try:
@@ -58,8 +74,11 @@ def create_verification(body: CreateVerification, tenant: dict = Depends(require
     token = new_token()
     v = db.create_verification(tenant["id"], body.reference_id, policy, body.expected.model_dump(),
                                hash_key(token), s.flow_token_ttl_s)
+    base = str(request.base_url).rstrip("/")
+    flow_base = f"{base}/flow" if "localhost" in s.flow_base_url else s.flow_base_url
+    api_base = base if "localhost" in s.public_base_url else s.public_base_url
     return {"id": v["id"], "status": v["status"], "policy": policy, "expires_at": v["expires_at"],
-            "flow_url": f"{s.flow_base_url}?v={v['id']}&t={token}&api={s.public_base_url}"}
+            "flow_url": f"{flow_base}?v={v['id']}&t={token}&api={api_base}"}
 
 
 @app.get("/v1/verifications")
@@ -154,7 +173,21 @@ async def upload(vid: str, kind: str, file: UploadFile = File(...), v: dict = De
     if allowed is None:
         raise HTTPException(400, f"Unknown upload kind. Allowed: {sorted(UPLOAD_KINDS)}")
     ext = Path(file.filename or "").suffix.lower()
-    if ext not in allowed:
+    if not ext:
+        ct = (file.content_type or "").lower()
+        if "png" in ct:
+            ext = ".png"
+        elif "webp" in ct:
+            ext = ".webp"
+        elif "jpeg" in ct or "jpg" in ct:
+            ext = ".jpeg"
+        elif "webm" in ct:
+            ext = ".webm"
+        elif "mp4" in ct:
+            ext = ".mp4"
+        elif "wav" in ct:
+            ext = ".wav"
+    if not ext or ext not in allowed:
         raise HTTPException(415, f"File type {ext or '(none)'} not allowed for {kind}")
     s = get_settings()
     limit = s.max_upload_mb * 1024 * 1024

@@ -35,6 +35,13 @@ def _answer(ctx: CheckContext, key: str, expected_name):
     path = ctx.files.get(f"spoken_{key}")
     if path:
         return TRANSCRIBER(path, expected_name if key == "name" else None)
+    shared = ctx.files.get("challenge_audio") or ctx.files.get("phrase_audio")
+    if shared:
+        shared_t = ctx.data.setdefault("_cached_transcripts", {}).get("shared")
+        if not shared_t:
+            shared_t = TRANSCRIBER(shared, expected_name)
+            ctx.data["_cached_transcripts"]["shared"] = shared_t
+        return shared_t
     return None
 
 

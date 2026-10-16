@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local KYC data, databases, and uploads
+data/*.sqlite3
+data/*.db
+data/uploads/
+
+# Local verification sample media
+/clip.mp4
+/id.jpeg
+/other_person.jpeg
+/selfie1.jpg
+
+# ML model and cache files
+*.onnx
+*.pt
+*.pth
+*.safetensors
+.cache/
+
+# Editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

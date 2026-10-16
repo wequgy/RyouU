@@ -47,3 +47,11 @@ Thumbs.db
 /other_person.jpeg
 /selfie1.jpg
 app/static/sample_*
+
+# Android Studio builds & APKs
+*.apk
+ApexPay_Android/build/
+ApexPay_Android/app/build/
+ApexPay_Android/.gradle/
+ApexPay_Android/local.properties
+

@@ -14,7 +14,6 @@ env/
 # Local environment and secrets
 .env
 .env.*
-!.env.example
 
 # Node / JavaScript dependencies
 node_modules/

@@ -60,8 +60,9 @@ app/static/sample_*
 
 # Android Studio builds & APKs
 *.apk
-ApexPay_Android/build/
-ApexPay_Android/app/build/
-ApexPay_Android/.gradle/
-ApexPay_Android/local.properties
+ApexPay_Android/
+sdk/android/.gradle/
+sdk/android/build/
+sdk/android/local.properties
+
 

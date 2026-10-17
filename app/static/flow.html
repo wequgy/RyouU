@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<meta name="description" content="Secure identity verification — UnClone KYC"/>
-<title>Identity Verification — UnClone KYC</title>
+<meta name="description" content="Secure identity verification — RyouU"/>
+<title>Identity Verification — RyouU</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
@@ -513,8 +513,8 @@ canvas { display: none; }
     </svg>
   </div>
   <div>
-    <div class="logo-text">UnClone KYC</div>
-    <div class="logo-sub">Secured biometric verification</div>
+    <div class="logo-text">RyouU</div>
+    <div class="logo-sub">Identity Verification</div>
   </div>
 </div>
 
@@ -606,6 +606,7 @@ const PRE_NAME    = params.get('name')    || '';
 const PRE_EMAIL   = params.get('email')   || '';
 const PRE_PHONE   = params.get('phone')   || '';
 const PRE_DOB     = params.get('dob')     || '';
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* ──────────── State ──────────── */
 const state = {
@@ -728,22 +729,22 @@ function renderDetails() {
 
     <div class="field-group">
       <div class="field-label">Full Legal Name</div>
-      <input class="field-input" id="fName" type="text" value="${PRE_NAME}" placeholder="e.g. Alex Morgan" autocomplete="name"/>
+      <input class="field-input" id="fName" type="text" value="${esc(PRE_NAME)}" placeholder="e.g. Alex Morgan" autocomplete="name"/>
     </div>
 
     <div class="field-group">
       <div class="field-label">Date of Birth</div>
-      <input class="field-input" id="fDob" type="text" value="${PRE_DOB}" placeholder="YYYY-MM-DD" maxlength="10"/>
+      <input class="field-input" id="fDob" type="text" value="${esc(PRE_DOB)}" placeholder="YYYY-MM-DD" maxlength="10"/>
     </div>
 
     <div class="field-group">
       <div class="field-label">Email Address</div>
-      <input class="field-input" id="fEmail" type="email" value="${PRE_EMAIL}" placeholder="Verification code will arrive here" autocomplete="email"/>
+      <input class="field-input" id="fEmail" type="email" value="${esc(PRE_EMAIL)}" placeholder="Verification code will arrive here" autocomplete="email"/>
     </div>
 
     <div class="field-group">
       <div class="field-label">Mobile Number</div>
-      <input class="field-input" id="fPhone" type="tel" value="${PRE_PHONE}" placeholder="10-digit number e.g. 9876543210" autocomplete="tel"/>
+      <input class="field-input" id="fPhone" type="tel" value="${esc(PRE_PHONE)}" placeholder="10-digit number e.g. 9876543210" autocomplete="tel"/>
     </div>
 
     <div id="detailsErr" class="err-box hidden">
@@ -786,7 +787,7 @@ function renderEmailOtp() {
   card.innerHTML = `
     <div class="step-icon">${SVGS.mail}</div>
     <h2>Verify your email</h2>
-    <p class="subtitle">A 6-digit code will be sent to <b>${state.email}</b>. Check your inbox and enter the code below.</p>
+    <p class="subtitle">A 6-digit code will be sent to <b>${esc(state.email)}</b>. Check your inbox and enter the code below.</p>
 
     <button class="btn btn-primary" id="sendEmailBtn" onclick="sendEmailOtp()">Send Verification Code</button>
 
@@ -832,7 +833,7 @@ function renderPhoneOtp() {
   card.innerHTML = `
     <div class="step-icon">${SVGS.phone}</div>
     <h2>Verify your phone</h2>
-    <p class="subtitle">A 6-digit code will be sent to <b>${state.phone}</b>. If SMS delivery is delayed, we automatically deliver the code to your verified email.</p>
+    <p class="subtitle">A 6-digit code will be sent to <b>${esc(state.phone)}</b>. If SMS delivery is delayed, we automatically deliver the code to your verified email.</p>
 
     <button class="btn btn-primary" id="sendPhoneBtn" onclick="sendPhoneOtp()">Send Phone Code</button>
 
@@ -840,7 +841,7 @@ function renderPhoneOtp() {
       <div class="divider">Enter your 6-digit code</div>
       <div class="info-box">
         ${SVGS.mailSmall}
-        <span>Didn't receive SMS? Check <b>${state.email}</b> — your code is also delivered there.</span>
+        <span>Didn't receive SMS? Check <b>${esc(state.email)}</b> — your code is also delivered there.</span>
       </div>
       <div class="otp-row" id="phoneOtpRow" style="margin-top:14px"></div>
       <button class="btn btn-primary" style="margin-top:18px" id="verifyPhoneBtn" onclick="verifyPhoneOtp()">Verify Phone</button>
@@ -1212,8 +1213,8 @@ async function renderLiveness() {
     <div class="challenge-box">
       <span class="ch-tag">Challenge 3 — Spoken Verification</span>
       <p>Read the details below clearly into your microphone:</p>
-      <p style="margin-top:8px">1. Your <b>full name</b> — <i>${state.name || 'as on your ID'}</i></p>
-      <p>2. Your <b>date of birth</b> — <i>${state.dob || 'YYYY-MM-DD'}</i></p>
+      <p style="margin-top:8px">1. Your <b>full name</b> — <i>${esc(state.name) || 'as on your ID'}</i></p>
+      <p>2. Your <b>date of birth</b> — <i>${esc(state.dob) || 'YYYY-MM-DD'}</i></p>
       <p>3. This spontaneous verification phrase:</p>
       <div class="phrase-code">${phrase}</div>
       <div class="warn-box" style="margin-top:0">
@@ -1431,7 +1432,7 @@ function showResult(status) {
       emblem: 'completed',
       icon: SVGS.resultApproved,
       title: 'Identity Verified!',
-      sub: 'Your identity has been confirmed. You may return to the ApexPay app.',
+      sub: 'Your identity has been confirmed. You may return to the RyouU app.',
       color: 'var(--success)'
     },
     needs_review: {
@@ -1463,7 +1464,7 @@ function showResult(status) {
     <div class="details-card">
       <div class="detail-row"><span class="dl">Session ID</span><span class="dv">${VID}</span></div>
       <div class="detail-row"><span class="dl">Status</span><span class="dv" style="color:${res.color}">${status.replace(/_/g, ' ').toUpperCase()}</span></div>
-      <div class="detail-row"><span class="dl">Name</span><span class="dv">${state.name || '—'}</span></div>
+      <div class="detail-row"><span class="dl">Name</span><span class="dv">${esc(state.name) || '—'}</span></div>
       <div class="detail-row"><span class="dl">Modules Evaluated</span><span class="dv">7 AI Checks</span></div>
     </div>
 

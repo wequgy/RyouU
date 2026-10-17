@@ -1,11 +1,12 @@
-"""SQLite storage. Simple on purpose: swap for Postgres later without touching callers."""
+"""Database storage layer with SQLite default and optional Postgres backend."""
 import json
+import os
 import sqlite3
 import threading
 import time
 import uuid
 from contextlib import contextmanager
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from .config import get_settings
 
@@ -23,28 +24,164 @@ CREATE TABLE IF NOT EXISTS otps (
   id INTEGER PRIMARY KEY AUTOINCREMENT, vid TEXT, channel TEXT, destination TEXT,
   code_hash TEXT, expires_at REAL, attempts INTEGER DEFAULT 0, used INTEGER DEFAULT 0,
   created_at REAL);
+CREATE TABLE IF NOT EXISTS pipeline_jobs (
+  id TEXT PRIMARY KEY, vid TEXT, tenant_id TEXT, status TEXT, attempts INTEGER DEFAULT 0,
+  error TEXT, created_at REAL, updated_at REAL);
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id TEXT PRIMARY KEY, tenant_id TEXT, vid TEXT, event_type TEXT, event_id TEXT,
+  attempt INTEGER, status_code INTEGER, error TEXT, duration_ms INTEGER, created_at REAL);
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  tenant_id TEXT, idempotency_key TEXT, status_code INTEGER, response_body TEXT,
+  created_at REAL, PRIMARY KEY (tenant_id, idempotency_key));
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT PRIMARY KEY, count INTEGER, window_start REAL);
 CREATE INDEX IF NOT EXISTS idx_ver_tenant ON verifications(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_otp ON otps(vid, channel);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON pipeline_jobs(status);
 """
+
+PG_SCHEMA = """
+CREATE TABLE IF NOT EXISTS tenants (
+  id TEXT PRIMARY KEY, name TEXT, api_key_hash TEXT UNIQUE, webhook_url TEXT,
+  webhook_secret TEXT, default_policy TEXT, created_at DOUBLE PRECISION);
+CREATE TABLE IF NOT EXISTS verifications (
+  id TEXT PRIMARY KEY, tenant_id TEXT, reference_id TEXT, policy TEXT, status TEXT,
+  decision TEXT, flow_token_hash TEXT, expires_at DOUBLE PRECISION, data TEXT, results TEXT,
+  reasons TEXT, trust DOUBLE PRECISION, review TEXT, webhook TEXT, created_at DOUBLE PRECISION, updated_at DOUBLE PRECISION);
+CREATE TABLE IF NOT EXISTS otps (
+  id SERIAL PRIMARY KEY, vid TEXT, channel TEXT, destination TEXT,
+  code_hash TEXT, expires_at DOUBLE PRECISION, attempts INTEGER DEFAULT 0, used INTEGER DEFAULT 0,
+  created_at DOUBLE PRECISION);
+CREATE TABLE IF NOT EXISTS pipeline_jobs (
+  id TEXT PRIMARY KEY, vid TEXT, tenant_id TEXT, status TEXT, attempts INTEGER DEFAULT 0,
+  error TEXT, created_at DOUBLE PRECISION, updated_at DOUBLE PRECISION);
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id TEXT PRIMARY KEY, tenant_id TEXT, vid TEXT, event_type TEXT, event_id TEXT,
+  attempt INTEGER, status_code INTEGER, error TEXT, duration_ms INTEGER, created_at DOUBLE PRECISION);
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  tenant_id TEXT, idempotency_key TEXT, status_code INTEGER, response_body TEXT,
+  created_at DOUBLE PRECISION, PRIMARY KEY (tenant_id, idempotency_key));
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT PRIMARY KEY, count INTEGER, window_start DOUBLE PRECISION);
+CREATE INDEX IF NOT EXISTS idx_ver_tenant ON verifications(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_otp ON otps(vid, channel);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON pipeline_jobs(status);
+"""
+
+_pg_pool = None
+
+
+def is_postgres() -> bool:
+    url = os.environ.get("DATABASE_URL", "")
+    return url.startswith("postgres://") or url.startswith("postgresql://")
+
+
+def _get_pg_conn():
+    global _pg_pool
+    url = os.environ["DATABASE_URL"]
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+        return psycopg.connect(url, row_factory=dict_row)
+    except ImportError:
+        try:
+            import psycopg2
+            import psycopg2.extras
+            conn = psycopg2.connect(url)
+            conn.cursor_factory = psycopg2.extras.RealDictCursor
+            return conn
+        except ImportError:
+            raise RuntimeError("Postgres database requested in DATABASE_URL but neither 'psycopg' nor 'psycopg2' is installed.")
+
+
+class CursorWrapper:
+    """Wrapper that translates '?' placeholders to '%s' for Postgres compatibility."""
+    def __init__(self, raw_cursor, is_pg: bool):
+        self._cur = raw_cursor
+        self._is_pg = is_pg
+
+    def execute(self, sql: str, params: tuple = ()):
+        if self._is_pg:
+            sql = sql.replace("?", "%s")
+        return self._cur.execute(sql, params)
+
+    def executescript(self, script: str):
+        if self._is_pg:
+            return self._cur.execute(script)
+        return self._cur.executescript(script)
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+    @property
+    def rowcount(self):
+        return self._cur.rowcount
+
+
+class ConnectionWrapper:
+    def __init__(self, raw_conn, is_pg: bool):
+        self._conn = raw_conn
+        self._is_pg = is_pg
+
+    def execute(self, sql: str, params: tuple = ()):
+        cur = self._conn.cursor()
+        wrapped = CursorWrapper(cur, self._is_pg)
+        wrapped.execute(sql, params)
+        return wrapped
+
+    def executescript(self, script: str):
+        if self._is_pg:
+            cur = self._conn.cursor()
+            cur.execute(script)
+            return cur
+        return self._conn.executescript(script)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
 
 
 @contextmanager
 def conn():
     s = get_settings()
-    s.data_dir.mkdir(parents=True, exist_ok=True)
-    c = sqlite3.connect(str(s.db_path), timeout=30)
-    c.row_factory = sqlite3.Row
-    try:
-        with _lock:
-            yield c
-            c.commit()
-    finally:
-        c.close()
+    if is_postgres():
+        c = _get_pg_conn()
+        wrapped = ConnectionWrapper(c, is_pg=True)
+        try:
+            yield wrapped
+            wrapped.commit()
+        except Exception:
+            wrapped.rollback()
+            raise
+        finally:
+            wrapped.close()
+    else:
+        s.data_dir.mkdir(parents=True, exist_ok=True)
+        c = sqlite3.connect(str(s.db_path), timeout=30)
+        c.row_factory = sqlite3.Row
+        wrapped = ConnectionWrapper(c, is_pg=False)
+        try:
+            with _lock:
+                yield wrapped
+                wrapped.commit()
+        finally:
+            wrapped.close()
 
 
 def init_db() -> None:
     with conn() as c:
-        c.executescript(SCHEMA)
+        if is_postgres():
+            c.executescript(PG_SCHEMA)
+        else:
+            c.executescript(SCHEMA)
 
 
 def _j(x) -> str:
@@ -67,6 +204,27 @@ def upsert_tenant(tenant_id, name, api_key, webhook_url, webhook_secret, default
                default_policy=excluded.default_policy""",
             (tenant_id, name, hash_key(api_key), webhook_url, webhook_secret, default_policy, time.time()),
         )
+
+
+def rotate_tenant_api_key(tenant_id: str, new_api_key: str) -> None:
+    from .security import hash_key
+    with conn() as c:
+        c.execute("UPDATE tenants SET api_key_hash=? WHERE id=?", (hash_key(new_api_key), tenant_id))
+
+
+def rotate_tenant_webhook_secret(tenant_id: str, new_secret: str) -> None:
+    with conn() as c:
+        c.execute("UPDATE tenants SET webhook_secret=? WHERE id=?", (new_secret, tenant_id))
+
+
+def update_tenant_webhook_url(tenant_id: str, new_url: str) -> None:
+    with conn() as c:
+        c.execute("UPDATE tenants SET webhook_url=? WHERE id=?", (new_url, tenant_id))
+
+
+def update_tenant_policy(tenant_id: str, default_policy: str) -> None:
+    with conn() as c:
+        c.execute("UPDATE tenants SET default_policy=? WHERE id=?", (default_policy, tenant_id))
 
 
 def tenant_by_api_key(key: str) -> Optional[dict]:
@@ -169,6 +327,93 @@ def save_webhook_status(vid, status: dict) -> None:
         c.execute("UPDATE verifications SET webhook=?, updated_at=? WHERE id=?", (_j(status), time.time(), vid))
 
 
+# ---------------- Idempotency Keys ----------------
+def get_idempotency(tenant_id: str, key: str) -> Optional[dict]:
+    with conn() as c:
+        row = c.execute("SELECT * FROM idempotency_keys WHERE tenant_id=? AND idempotency_key=?",
+                        (tenant_id, key)).fetchone()
+        if not row:
+            return None
+        r = dict(row)
+        r["response_body"] = json.loads(r["response_body"])
+        return r
+
+
+def save_idempotency(tenant_id: str, key: str, status_code: int, response_data: dict) -> None:
+    with conn() as c:
+        c.execute(
+            """INSERT INTO idempotency_keys (tenant_id, idempotency_key, status_code, response_body, created_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(tenant_id, idempotency_key) DO UPDATE SET
+               status_code=excluded.status_code, response_body=excluded.response_body""",
+            (tenant_id, key, status_code, _j(response_data), time.time()),
+        )
+
+
+# ---------------- Rate Limiting ----------------
+def check_rate_limit(key: str, limit: int = 60, window_s: int = 60) -> bool:
+    """Returns True if within rate limit, False if limit exceeded."""
+    now = time.time()
+    with conn() as c:
+        row = c.execute("SELECT * FROM rate_limits WHERE key=?", (key,)).fetchone()
+        if not row:
+            c.execute("INSERT INTO rate_limits (key, count, window_start) VALUES (?, 1, ?)", (key, now))
+            return True
+        r = dict(row)
+        if now - r["window_start"] > window_s:
+            c.execute("UPDATE rate_limits SET count=1, window_start=? WHERE key=?", (now, key))
+            return True
+        if r["count"] >= limit:
+            return False
+        c.execute("UPDATE rate_limits SET count=count+1 WHERE key=?", (key,))
+        return True
+
+
+# ---------------- Pipeline Durability (DB-backed queue) ----------------
+def enqueue_pipeline_job(vid: str, tenant_id: str) -> str:
+    job_id = "job_" + uuid.uuid4().hex[:16]
+    now = time.time()
+    with conn() as c:
+        c.execute(
+            "INSERT INTO pipeline_jobs (id, vid, tenant_id, status, attempts, created_at, updated_at) "
+            "VALUES (?, ?, ?, 'pending', 0, ?, ?)",
+            (job_id, vid, tenant_id, now, now),
+        )
+    return job_id
+
+
+def get_pending_pipeline_jobs() -> List[dict]:
+    with conn() as c:
+        rows = c.execute("SELECT * FROM pipeline_jobs WHERE status IN ('pending', 'processing') "
+                         "ORDER BY created_at ASC LIMIT 100").fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_pipeline_job(job_id: str, status: str, error: Optional[str] = None) -> None:
+    with conn() as c:
+        c.execute("UPDATE pipeline_jobs SET status=?, attempts=attempts+1, error=?, updated_at=? WHERE id=?",
+                  (status, error, time.time(), job_id))
+
+
+# ---------------- Webhook Deliveries Log ----------------
+def log_webhook_delivery(tenant_id: str, vid: str, event_type: str, event_id: str,
+                         attempt: int, status_code: Optional[int], error: Optional[str],
+                         duration_ms: int) -> None:
+    delivery_id = "whdel_" + uuid.uuid4().hex[:16]
+    with conn() as c:
+        c.execute(
+            "INSERT INTO webhook_deliveries (id, tenant_id, vid, event_type, event_id, attempt, "
+            "status_code, error, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (delivery_id, tenant_id, vid, event_type, event_id, attempt, status_code, error, duration_ms, time.time()),
+        )
+
+
+def get_webhook_deliveries(vid: str) -> List[dict]:
+    with conn() as c:
+        rows = c.execute("SELECT * FROM webhook_deliveries WHERE vid=? ORDER BY attempt ASC", (vid,)).fetchall()
+    return [dict(r) for r in rows]
+
+
 # ---------------- OTPs ----------------
 def otp_insert(vid, channel, destination, code_hash, expires_at) -> None:
     with conn() as c:
@@ -197,7 +442,17 @@ def otp_mark_used(otp_id) -> None:
         c.execute("UPDATE otps SET used=1 WHERE id=?", (otp_id,))
 
 
+# ---------------- Retention & Deletion ----------------
+def get_expired_verifications(max_age_s: float) -> List[str]:
+    cutoff = time.time() - max_age_s
+    with conn() as c:
+        rows = c.execute("SELECT id FROM verifications WHERE created_at < ?", (cutoff,)).fetchall()
+    return [r["id"] for r in rows]
+
+
 def delete_verification(vid: str) -> None:
     with conn() as c:
         c.execute("DELETE FROM otps WHERE vid=?", (vid,))
+        c.execute("DELETE FROM pipeline_jobs WHERE vid=?", (vid,))
+        c.execute("DELETE FROM webhook_deliveries WHERE vid=?", (vid,))
         c.execute("DELETE FROM verifications WHERE id=?", (vid,))

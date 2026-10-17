@@ -5,10 +5,13 @@ send-limited per session. The user types the code into the page. NEVER ask peopl
 """
 import hashlib
 import hmac
+import os
 import secrets
 import smtplib
 import time
+from abc import ABC, abstractmethod
 from email.message import EmailMessage
+from typing import Optional
 
 from .. import db
 from ..config import get_settings
@@ -47,7 +50,7 @@ class SMTPSender:
         msg["To"] = destination
         msg.set_content(
             f"Hello,\n\n"
-            f"Your one-time security verification code for ApexPay Identity Verification is:\n\n"
+            f"Your one-time security verification code for KYC Identity Verification is:\n\n"
             f"    {code}\n\n"
             f"This code will expire in {s.otp_ttl_s // 60} minutes.\n"
             f"If you did not request this verification, please ignore this email.\n\n"
@@ -65,8 +68,26 @@ class SMTPSender:
             raise OtpError(f"Email delivery failed: {e}")
 
 
-class TwilioSender:
-    def send(self, channel: str, destination: str, code: str) -> None:
+# ---------- Pluggable SMS Provider Interface ----------
+class SmsProvider(ABC):
+    @abstractmethod
+    def send_sms(self, destination: str, code: str, recipient: Optional[str] = None) -> dict:
+        """Send an SMS OTP. Returns a dict e.g. {'via': 'sms'} or {'via': 'email_bridge'}."""
+        pass
+
+
+class MockSmsProvider(SmsProvider):
+    def __init__(self):
+        self.sent_messages = []
+
+    def send_sms(self, destination: str, code: str, recipient: Optional[str] = None) -> dict:
+        self.sent_messages.append({"destination": destination, "code": code})
+        print(f"[otp:mock_sms] Mock SMS dispatched to {destination}: {code}", flush=True)
+        return {"via": "sms"}
+
+
+class TwilioSmsProvider(SmsProvider):
+    def send_sms(self, destination: str, code: str, recipient: Optional[str] = None) -> dict:
         s = get_settings()
         import base64
         import urllib.parse
@@ -82,21 +103,21 @@ class TwilioSender:
         try:
             with urllib.request.urlopen(req, timeout=12) as resp:
                 print(f"[otp:sms] Twilio SMS dispatched to {destination}: status {resp.status}", flush=True)
+                return {"via": "sms"}
         except Exception as e:
             print(f"[otp:sms] Twilio SMS error: {e}", flush=True)
             raise OtpError(f"SMS delivery failed via Twilio: {e}")
 
 
-class Fast2SMSSender:
-    """Tries Fast2SMS API. If account requires wallet recharge (HTTP 400), seamlessly bridges to user's email."""
-    def send(self, channel: str, destination: str, code: str, recipient: str = None) -> dict:
+class Fast2SmsProvider(SmsProvider):
+    def send_sms(self, destination: str, code: str, recipient: Optional[str] = None) -> dict:
         s = get_settings()
-        import urllib.request, json as _json
+        import json as _json
+        import urllib.request
         clean_num = "".join(filter(str.isdigit, destination))[-10:]
         if len(clean_num) != 10:
             clean_num = destination
 
-        # Try Fast2SMS bulkV2
         url = (f"https://www.fast2sms.com/dev/bulkV2?authorization={s.fast2sms_api_key}"
                f"&route=q&message=Your+KYC+verification+code+is+{code}.+Valid+for+5+minutes."
                f"&language=english&flash=0&numbers={clean_num}")
@@ -112,24 +133,22 @@ class Fast2SMSSender:
             err_body = e.read().decode()
             print(f"[otp:sms] Fast2SMS HTTP {e.code}: {err_body}", flush=True)
             print(f"[otp:sms] Fast2SMS requires prepaid recharge. Auto-routing phone OTP to {recipient or s.smtp_user}...", flush=True)
-            EmailAsSmsSender().send(channel, destination, code, recipient=recipient)
-            return {"via": "email_bridge", "reason": "Fast2SMS requires ₹100 deposit", "email": recipient or s.smtp_user}
+            EmailBridgeSmsProvider().send_sms(destination, code, recipient=recipient)
+            return {"via": "email_bridge", "reason": "Fast2SMS requires prepaid recharge", "email": recipient or s.smtp_user}
         except Exception as e:
             print(f"[otp:sms] Fast2SMS error ({e}). Auto-routing phone OTP to {recipient or s.smtp_user}...", flush=True)
-            EmailAsSmsSender().send(channel, destination, code, recipient=recipient)
+            EmailBridgeSmsProvider().send_sms(destination, code, recipient=recipient)
             return {"via": "email_bridge", "reason": str(e), "email": recipient or s.smtp_user}
 
 
-class EmailAsSmsSender:
-    """Delivers the phone OTP via email when no SMS gateway is configured/working.
-    The email clearly states it is the SMS verification code for the phone number.
-    """
-    def send(self, channel: str, destination: str, code: str, recipient: str = None) -> None:
+class EmailBridgeSmsProvider(SmsProvider):
+    """Delivers the phone OTP via email when no SMS gateway is configured/working."""
+    def send_sms(self, destination: str, code: str, recipient: Optional[str] = None) -> dict:
         s = get_settings()
         to_email = recipient or s.smtp_user
         if not (s.smtp_host and s.smtp_user and s.smtp_pass):
             print(f"[otp:phone] (Console fallback) Phone OTP for {destination}: {code}", flush=True)
-            return
+            return {"via": "email_bridge", "email": to_email}
 
         msg = EmailMessage()
         sender_email = s.smtp_from or s.smtp_user
@@ -154,6 +173,36 @@ class EmailAsSmsSender:
         except Exception as e:
             print(f"[otp:phone] Email bridge error: {e}", flush=True)
             print(f"[otp:phone] Code is: {code}", flush=True)
+        return {"via": "email_bridge", "email": to_email}
+
+
+# Pluggable global provider
+_custom_sms_provider: Optional[SmsProvider] = None
+
+
+def set_sms_provider(provider: Optional[SmsProvider]) -> None:
+    global _custom_sms_provider
+    _custom_sms_provider = provider
+
+
+def get_sms_provider() -> SmsProvider:
+    global _custom_sms_provider
+    if _custom_sms_provider is not None:
+        return _custom_sms_provider
+
+    s = get_settings()
+    mode = os.environ.get("SMS_PROVIDER", "").lower()
+    if mode == "mock":
+        return MockSmsProvider()
+    if mode == "twilio" or (s.twilio_account_sid and s.twilio_auth_token and mode != "email_bridge"):
+        return TwilioSmsProvider()
+    if mode == "fast2sms" or (s.fast2sms_api_key and mode != "email_bridge"):
+        return Fast2SmsProvider()
+    if s.smtp_host and s.smtp_user and s.smtp_pass:
+        return EmailBridgeSmsProvider()
+    if s.dev_mode:
+        return MockSmsProvider()
+    return EmailBridgeSmsProvider()
 
 
 def get_sender(channel: str):
@@ -161,15 +210,11 @@ def get_sender(channel: str):
     if channel == "email":
         if s.smtp_host and s.smtp_user and s.smtp_pass:
             return SMTPSender()
+        if s.dev_mode:
+            return ConsoleSender()  # dev only: no SMTP configured, code is echoed as dev_code
         raise OtpError("SMTP credentials not configured in .env (SMTP_HOST, SMTP_USER, SMTP_PASS)")
     if channel == "phone":
-        if s.fast2sms_api_key:
-            return Fast2SMSSender()
-        if s.twilio_account_sid and s.twilio_auth_token:
-            return TwilioSender()
-        # Fallback: deliver phone OTP via email bridge
-        if s.smtp_host and s.smtp_user and s.smtp_pass:
-            return EmailAsSmsSender()
+        return get_sms_provider()
     return ConsoleSender()
 
 
@@ -191,25 +236,22 @@ def issue(vid: str, channel: str, destination: str) -> dict:
         if not recipient_email:
             recipient_email = s.smtp_user
 
-    sender = get_sender(channel)
     send_info = {}
-    if isinstance(sender, Fast2SMSSender):
-        send_info = sender.send(channel, destination, code, recipient=recipient_email) or {}
-    elif isinstance(sender, EmailAsSmsSender):
-        sender.send(channel, destination, code, recipient=recipient_email)
-        send_info = {"via": "email_bridge", "email": recipient_email}
+    if channel == "phone":
+        provider = get_sms_provider()
+        send_info = provider.send_sms(destination, code, recipient=recipient_email) or {}
     else:
+        sender = get_sender(channel)
         sender.send(channel, destination, code)
 
     out = {"sent": True, "destination": mask(destination), "expires_in_s": s.otp_ttl_s}
     if send_info.get("via") == "email_bridge":
+        db.update_data(vid, lambda d: d.setdefault("otp_bridge", {}).__setitem__(channel, True))
         out["fallback"] = "email"
         out["email"] = recipient_email
     if s.dev_mode:
         out["dev_code"] = code
-    print(f"\n==================================================", flush=True)
-    print(f"--> [OTP CODE] {channel.upper()} OTP: {code} for {destination}", flush=True)
-    print(f"==================================================\n", flush=True)
+        print(f"[otp:dev] {channel} code for {destination}: {code}", flush=True)
     return out
 
 
@@ -236,6 +278,8 @@ def _otp_check(channel: str):
 
     def check(ctx: CheckContext) -> CheckResult:
         verified = ctx.data.get("verified", {}).get(channel)
+        if verified and ctx.data.get("otp_bridge", {}).get(channel):
+            return CheckResult.uncertain(name, f"{channel} code was delivered by email, so it does not prove you hold this phone")
         if verified:
             return CheckResult.passed(name, f"{channel} verified ({mask(verified)})", confidence=0.9)
         row = db.otp_latest(ctx.session_id, channel)

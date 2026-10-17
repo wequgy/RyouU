@@ -1,9 +1,13 @@
+import base64
 import hashlib
 import hmac
+import os
 import secrets
 import time
+from pathlib import Path
 from typing import Optional
 
+from cryptography.fernet import Fernet
 from fastapi import Header, HTTPException
 
 from . import db
@@ -16,6 +20,75 @@ def hash_key(key: str) -> str:
 
 def new_token() -> str:
     return secrets.token_urlsafe(32)
+
+
+# ---------- Encryption at rest (Fernet authenticated AES-128-CBC) ----------
+_fernet_instance: Optional[Fernet] = None
+
+
+def get_cipher() -> Fernet:
+    global _fernet_instance
+    if _fernet_instance is not None:
+        return _fernet_instance
+
+    key = os.environ.get("KYC_ENCRYPTION_KEY")
+    if key:
+        try:
+            _fernet_instance = Fernet(key.encode() if isinstance(key, str) else key)
+            return _fernet_instance
+        except Exception:
+            pass
+
+    # Fallback to key file in data dir or stable derive
+    key_file = get_settings().data_dir / ".encryption_key"
+    try:
+        if key_file.exists():
+            k = key_file.read_bytes().strip()
+            _fernet_instance = Fernet(k)
+            return _fernet_instance
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        k = Fernet.generate_key()
+        key_file.write_bytes(k)
+        _fernet_instance = Fernet(k)
+        return _fernet_instance
+    except Exception:
+        # In-memory fallback (e.g. read-only tmp)
+        derived = base64.urlsafe_b64encode(hashlib.sha256(b"unclone-kyc-default-dev-seed").digest())
+        _fernet_instance = Fernet(derived)
+        return _fernet_instance
+
+
+def encrypt_bytes(data: bytes) -> bytes:
+    return get_cipher().encrypt(data)
+
+
+def decrypt_bytes(token: bytes) -> bytes:
+    return get_cipher().decrypt(token)
+
+
+# ---------- Signed evidence URLs ----------
+def sign_evidence_token(vid: str, kind: str, expires_in_s: int = 3600) -> str:
+    """Issue a signed expiring token for downloading uploaded evidence."""
+    expires_at = int(time.time() + expires_in_s)
+    msg = f"{vid}:{kind}:{expires_at}".encode()
+    mac = hmac.new(get_cipher()._signing_key, msg, hashlib.sha256).hexdigest()
+    raw = f"{expires_at}:{mac}"
+    return base64.urlsafe_b64encode(raw.encode()).decode()
+
+
+def verify_evidence_token(vid: str, kind: str, token_str: str) -> bool:
+    """Verify an expiring evidence access token."""
+    try:
+        raw = base64.urlsafe_b64decode(token_str.encode()).decode()
+        expires_at_str, mac = raw.split(":", 1)
+        expires_at = int(expires_at_str)
+        if time.time() > expires_at:
+            return False
+        msg = f"{vid}:{kind}:{expires_at}".encode()
+        expected = hmac.new(get_cipher()._signing_key, msg, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected, mac)
+    except Exception:
+        return False
 
 
 # ---------- Webhook signing (Stripe-style: t=<ts>,v1=<hex hmac of "<ts>.<body>">) ----------

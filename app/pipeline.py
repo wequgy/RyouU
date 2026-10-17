@@ -1,4 +1,6 @@
 """Run the checks, decide, store, notify."""
+import shutil
+import tempfile
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
@@ -9,10 +11,12 @@ from .checks import base as registry
 from .config import get_settings
 from .models import FAIL, PASS, SKIPPED, UNCERTAIN, CheckContext, CheckResult
 from .policies import checks_for, get_policy
+from .security import decrypt_bytes
 
 
-def build_context(v: dict, policy: dict) -> CheckContext:
-    files = {k: Path(p) for k, p in (v["data"].get("files") or {}).items()}
+def build_context(v: dict, policy: dict, files: dict = None) -> CheckContext:
+    if files is None:
+        files = {k: Path(p) for k, p in (v["data"].get("files") or {}).items()}
     return CheckContext(session_id=v["id"], data=v["data"], files=files, policy=policy, settings=get_settings())
 
 
@@ -74,18 +78,47 @@ def public_view(v: dict) -> dict:
     }
 
 
-def process(vid: str) -> None:
-    """Background entry point (called after /submit)."""
+def process(vid: str, job_id: str = None) -> None:
+    """Background entry point (called after /submit). Decrypts uploads to memory/temp for evaluation."""
     v = db.get_verification(vid)
+    if not v:
+        if job_id:
+            db.mark_pipeline_job(job_id, "failed", "Verification not found")
+        return
+
     tenant = db.tenant_by_id(v["tenant_id"])
+    if job_id:
+        db.mark_pipeline_job(job_id, "processing")
+
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"kyc_proc_{vid}_"))
     try:
         policy = get_policy(v["policy"])
-        ctx = build_context(v, policy)
+        decrypted_files = {}
+        for kind, p_str in (v["data"].get("files") or {}).items():
+            src_path = Path(p_str)
+            if src_path.exists():
+                dst = temp_dir / src_path.name
+                raw = src_path.read_bytes()
+                try:
+                    decrypted = decrypt_bytes(raw)
+                except Exception:
+                    decrypted = raw
+                dst.write_bytes(decrypted)
+                decrypted_files[kind] = dst
+
+        ctx = build_context(v, policy, decrypted_files)
         results = run_checks(ctx, checks_for(policy))
         outcome = decide(policy, results)
         db.save_outcome(vid, [r.to_dict() for r in results], outcome["decision"], outcome["reasons"], outcome["trust"])
-    except Exception as e:  # never leave a session stuck in 'processing', never approve on error
+        if job_id:
+            db.mark_pipeline_job(job_id, "completed")
+    except Exception as e:
         traceback.print_exc()
         db.save_outcome(vid, [], "needs_review", [f"internal error: {type(e).__name__}"], None)
+        if job_id:
+            db.mark_pipeline_job(job_id, "failed", str(e))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
     status = webhooks.deliver(tenant, "verification.completed", public_view(db.get_verification(vid)))
     db.save_webhook_status(vid, status)

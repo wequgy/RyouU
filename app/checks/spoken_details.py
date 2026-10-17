@@ -17,8 +17,20 @@ def transcribe(path, prompt=None) -> str:
     if _WHISPER is None:
         from faster_whisper import WhisperModel
         from ..config import get_settings
-        _WHISPER = WhisperModel(get_settings().whisper_model, device="auto", compute_type="int8")
-    segments, _ = _WHISPER.transcribe(str(path), language="en", initial_prompt=prompt, vad_filter=True)
+        try:
+            _WHISPER = WhisperModel(get_settings().whisper_model, device="auto", compute_type="int8")
+        except Exception:
+            _WHISPER = WhisperModel(get_settings().whisper_model, device="cpu", compute_type="int8")
+    try:
+        segments, _ = _WHISPER.transcribe(str(path), language="en", initial_prompt=prompt, vad_filter=True)
+    except Exception as e:
+        if "cublas" in str(e).lower() or "cuda" in str(e).lower():
+            from faster_whisper import WhisperModel
+            from ..config import get_settings
+            _WHISPER = WhisperModel(get_settings().whisper_model, device="cpu", compute_type="int8")
+            segments, _ = _WHISPER.transcribe(str(path), language="en", initial_prompt=prompt, vad_filter=True)
+        else:
+            raise
     return " ".join(seg.text.strip() for seg in segments).strip()
 
 

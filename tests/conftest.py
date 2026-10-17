@@ -9,11 +9,17 @@ from fastapi.testclient import TestClient
 def env(tmp_path, monkeypatch):
     monkeypatch.setenv("KYC_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("KYC_DEV_MODE", "1")
+    monkeypatch.setenv("KYC_SEED_DEMO", "1")
     monkeypatch.setenv("WEBHOOK_BACKOFF_S", "0")
     monkeypatch.setenv("DETECTIF_RETRY_SLEEP_CAP_S", "0")
     monkeypatch.setenv("DEMO_WEBHOOK_URL", "http://client.test/webhooks/kyc")
     monkeypatch.setenv("DEMO_WEBHOOK_SECRET", "whsec_test")
     monkeypatch.setenv("DETECTIF_API_KEY", "test-key")
+    monkeypatch.delenv("SMTP_HOST", raising=False)
+    monkeypatch.delenv("SMTP_USER", raising=False)
+    monkeypatch.delenv("SMTP_PASS", raising=False)
+    monkeypatch.delenv("FAST2SMS_API_KEY", raising=False)
+    monkeypatch.delenv("TWILIO_ACCOUNT_SID", raising=False)
 
 
 @pytest.fixture

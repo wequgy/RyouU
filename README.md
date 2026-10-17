@@ -1,70 +1,128 @@
-# KYC Verification Service (backend)
+# Unclone KYC Verification Service (Backend)
 
-A multi-tenant verification API: a customer's backend creates a session, their user completes a flow
-(hosted page, built separately), and a signed webhook delivers the result. Checks are plug-in modules.
+A production-quality multi-tenant identity verification API: a customer's backend creates a session, their user completes a verification flow (hosted page at `/flow`), and a signed webhook delivers the result. Checks are pluggable modules.
 
 ```
-customer backend --POST /v1/verifications--> API --> flow_url --> end user (verification page)
+customer backend --POST /v1/verifications--> API --> flow_url --> end user (hosted page /flow in WebView)
 end user --/flow/* (uploads, OTP, signals, challenges, submit)--> API --> background pipeline
 pipeline: run checks in parallel -> decision engine (per-tenant policy) -> save -> signed webhook
-customer: GET /v1/verifications/{id}, human review via POST .../review
+customer: GET /v1/verifications/{id}, human review via POST .../review, evidence via GET .../evidence
 ```
 
-## Run it
+## Quickstart
+
+### Local Setup
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt          # core + tests
-pip install -r requirements-ml.txt           # optional: InsightFace, Whisper (heavy)
-cp .env.example .env && set -a && source .env && set +a
+python -m venv .venv
+source .venv/bin/activate       # On Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt          # core + dev tools
+pip install -r requirements-ml.txt           # optional: InsightFace, Whisper
 
-uvicorn app.main:app --port 8000             # the service (docs at /docs)
-uvicorn demo_client.app:app --port 9000      # the fake customer ("FakeBank") receiving webhooks
-python -m scripts.e2e_demo --key kyc_demo_strict_key     # drive a full verification
-python -m pytest tests -q                    # 47 tests
+# Set environment
+cp .env.example .env
+
+# Run API server
+uvicorn app.main:app --port 8000 --reload    # docs at http://localhost:8000/docs
+# Run test suite
+python -m pytest tests -q
 ```
-Demo tenants (seeded when KYC_SEED_DEMO=1): `kyc_demo_lenient_key`, `kyc_demo_strict_key`.
-Without the ML packages the face and Whisper checks return `uncertain` (never `pass`).
 
-## Endpoints
-Customer API (`Authorization: Bearer <key>`):
-`POST /v1/verifications`, `GET /v1/verifications[/{id}]`, `POST /v1/verifications/{id}/review`,
-`DELETE /v1/verifications/{id}`, `GET /v1/policies`.
+### Docker & Docker Compose
+```bash
+# Run API with optional PostgreSQL backend
+docker-compose up --build
+```
 
-End-user flow API (`X-Flow-Token`, token is in the flow_url):
-`GET /flow/{id}/context` (which steps to show), `POST .../otp/send|verify`, `POST .../upload/{kind}`
-(id_image, selfie, challenge_audio, phrase_audio, spoken_name, spoken_dob, spoken_id_last4),
-`POST .../signals`, `POST .../challenges` + `.../challenges/result`, `POST .../submit`.
+Demo tenants (seeded when `KYC_SEED_DEMO=1`):
+- `kyc_demo_lenient_key` (lenient policy)
+- `kyc_demo_strict_key` (strict policy)
 
-Webhook: `X-KYC-Signature: t=<unix>,v1=<hmac_sha256("<t>.<body>")>`. Verify with `app.security.verify_signature`.
+---
 
-## Checks (`app/checks/`)
-| Check | Implementation | Status |
-|---|---|---|
-| face_match | InsightFace buffalo_l (non-commercial weights) | real, needs `requirements-ml.txt` + threshold calibration |
-| email_otp / phone_otp | hashed, expiring, single-use, attempt- and send-limited | real; phone uses a console mock sender |
-| voice_ai | Detectif `/v1/deepfake/detect` | real HTTP client, mocked in tests, not run against the live API yet |
-| spoken_details | faster-whisper + rapidfuzz + date/digit normalisation | real, needs ML install |
-| liveness | server-issued random challenges, replay-proof, time-limited | real logic; metrics are client-supplied (untrusted) |
-| source_checks | virtual-camera names, screen share, focus loss, extra display | real, from untrusted client signals |
-| video_deepfake | stub, returns `uncertain` | TODO (CLIP-based head) |
+## API Endpoints
 
-Result contract (`app/models.py::CheckResult`): `name, status(pass|fail|uncertain|skipped), score (trust, 1=genuine),
-confidence, reason, details`.
+### 1. Customer API (`Authorization: Bearer <api_key>`)
 
-## Decisions (`app/policies.py`, `app/pipeline.py::decide`)
-`approved` / `needs_review` / `rejected_recommended` (always a recommendation; a human can override via /review).
-Per policy: `reject_on_fail` (FAIL -> rejected_recommended), `must_pass` (anything but PASS -> needs_review),
-`max_uncertain_required` (how many other required checks may be uncertain). A crashing or missing check
-becomes `uncertain`, never `pass`. A customer-side webhook outage never changes the verdict.
+- `POST /v1/verifications`
+  - Create a new verification session.
+  - Supports `Idempotency-Key` header to safely retry requests without double-creation.
+  - Body: `{"reference_id": "...", "policy": "strict|lenient", "expected": {"name": "...", "dob": "...", "id_last4": "..."}}`
+  - Returns: `{"id": "...", "status": "created", "policy": "...", "flow_url": "https://.../flow?v=...&t=..."}`
 
-## Before you rely on it
-1. **Calibrate face thresholds** (`FACE_PASS_SIM` / `FACE_FAIL_SIM` are placeholders): `python -m scripts.face_cli id.jpg selfie1.jpg other_person.jpg`.
-2. **Test Detectif early**: `python -m scripts.detectif_cli clip.wav`. Try a 3 s clip (their docs disagree on minimum length), a real recording, a cloned one, phone-quality audio.
-3. **Dev mode** (`KYC_DEV_MODE=1`) echoes OTP codes and accepts client transcripts. Never enable it in production.
-4. Liveness metrics and source signals come from the browser and can be forged. For production, recompute from uploaded frames server-side.
+- `GET /v1/verifications`
+  - List verifications for the authenticated tenant with pagination (`?limit=50`).
 
-## Not built yet
-Verification page and dashboard (frontend), ID OCR (tenant supplies `expected` for now), video deepfake model,
-Idempotency-Key on create, rate limiting, per-tenant policy editing API, speaker consistency via Detectif
-enroll/verify, real SMS provider (India needs DLT registration), Postgres, encryption of stored uploads,
-retention jobs, audit log. Compliance (RBI V-CIP, DPDP) needs legal review before any real deployment.
+- `GET /v1/verifications/{id}`
+  - Fetch verification status and decision.
+  - Returns: `id`, `reference_id`, `status`, `policy`, `decision`, `final_decision`, `trust`, `reasons`, `results`, `review`, `webhook`.
+  - Notice: No sensitive customer PII is leaked in this endpoint.
+
+- `GET /v1/verifications/{id}/evidence`
+  - Returns a manifest of expiring signed download URLs for all encrypted evidence artifacts.
+
+- `GET /v1/verifications/{id}/evidence/{kind}`
+  - Download decrypted evidence artifact (e.g. `selfie`, `id_image`, `challenge_video`, `challenge_audio`).
+  - Authorized via `?token=<signed_token>` or tenant `Bearer <api_key>`.
+
+- `POST /v1/verifications/{id}/review`
+  - Human reviewer override (`{"decision": "approved|rejected", "note": "..."}`).
+
+- `DELETE /v1/verifications/{id}`
+  - Deletes database records and purges encrypted upload files from disk.
+
+- `GET /v1/policies`
+  - List available policies (`lenient`, `strict`).
+
+- `POST /v1/tenant/rotate-key`
+  - Rotate the tenant's API key. Returns new live key; only its SHA-256 hash is retained in DB.
+
+- `POST /v1/tenant/rotate-webhook-secret`
+  - Rotate the tenant's webhook HMAC signing secret.
+
+- `PATCH /v1/tenant/webhook`
+  - Update tenant webhook endpoint URL (`{"webhook_url": "https://..."}`).
+
+---
+
+### 2. End-User Flow API (`X-Flow-Token: <token>`)
+
+- `GET /flow`
+  - Hosted verification UI page rendered in a secure WebView or browser.
+- `GET /flow/{id}/context`
+  - Fetch session configuration and required steps.
+- `POST /flow/{id}/otp/send` & `POST /flow/{id}/otp/verify`
+  - Send and verify OTP codes for email and phone.
+- `POST /flow/{id}/upload/{kind}`
+  - Secure upload encrypted at rest (`id_image`, `selfie`, `challenge_audio`, `phrase_audio`, `spoken_name`, `spoken_dob`, `spoken_id_last4`, `challenge_video`).
+- `POST /flow/{id}/signals`
+  - Client device and environment fraud signals.
+- `POST /flow/{id}/challenges` & `POST /flow/{id}/challenges/result`
+  - Interactive replay-proof liveness challenges.
+- `POST /flow/{id}/submit`
+  - Atomically claims the session and enqueues a durable background processing job.
+
+---
+
+## Webhooks
+
+Webhooks deliver completion and review events with an HMAC-SHA256 signature in the `X-KYC-Signature` header:
+```
+X-KYC-Signature: t=<unix_timestamp>,v1=<hex_hmac>
+```
+Verify the signature using `verify_signature(secret, raw_body, header, tolerance_s=300)`.
+
+Webhook attempts are retried with exponential backoff and logged in the database table `webhook_deliveries`.
+
+---
+
+## Storage & Security
+
+- **Encryption at Rest**: Uploaded evidence is encrypted on disk using Fernet (AES-128-CBC + HMAC). Set `KYC_ENCRYPTION_KEY` or rely on the persistent key generated in `KYC_DATA_DIR`.
+- **Database**: Default SQLite with WAL mode; optional PostgreSQL via `DATABASE_URL=postgresql://...`.
+- **Durability**: Pipeline jobs survive server restarts via the `pipeline_jobs` table.
+- **Pluggable SMS Provider**: Pluggable `SmsProvider` interface (`MockSmsProvider`, `Fast2SmsProvider`, `TwilioSmsProvider`, `EmailBridgeSmsProvider`).
+
+---
+
+## License Notice
+Licensed under the MIT License. Note that InsightFace `buffalo_l` model weights are licensed for non-commercial research purposes only.

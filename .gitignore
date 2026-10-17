@@ -16,10 +16,20 @@ env/
 .env.*
 !.env.example
 
-# Local KYC data, databases, and uploads
-data/*.sqlite3
-data/*.db
-data/uploads/
+# Node / JavaScript dependencies
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local KYC data, databases, encryption keys, and uploads
+data/
+*.sqlite3
+*.db
+*.patch
+.encryption_key
+data/.encryption_key
 
 
 # ML model and cache files

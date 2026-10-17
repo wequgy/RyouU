@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - KYC_DEV_MODE=0
+      - KYC_DATA_DIR=/app/data
+      - PUBLIC_BASE_URL=http://localhost:8000
+      - FLOW_BASE_URL=http://localhost:8000/flow
+      - DATABASE_URL=postgresql://kyc_user:kyc_pass@postgres:5432/kyc_db
+    volumes:
+      - kyc_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=kyc_user
+      - POSTGRES_PASSWORD=kyc_pass
+      - POSTGRES_DB=kyc_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kyc_user -d kyc_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  kyc_data:
+  pg_data:

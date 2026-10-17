@@ -69,7 +69,7 @@ def get_settings() -> Settings:
         flow_base_url=os.environ.get("FLOW_BASE_URL", "http://localhost:3000/verify"),
         cors_origins=[o.strip() for o in os.environ.get("KYC_CORS_ORIGINS", "*").split(",") if o.strip()],
         dev_mode=_flag("KYC_DEV_MODE"),
-        seed_demo=_flag("KYC_SEED_DEMO", True),
+        seed_demo=_flag("KYC_SEED_DEMO", False),
         demo_webhook_url=os.environ.get("DEMO_WEBHOOK_URL", "http://localhost:9000/webhooks/kyc"),
         demo_webhook_secret=os.environ.get("DEMO_WEBHOOK_SECRET", "whsec_demo"),
         flow_token_ttl_s=int(_num("FLOW_TOKEN_TTL_S", 1800)),

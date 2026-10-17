@@ -1,7 +1,9 @@
 """Random liveness challenges. Issued by the server so a pre-recorded or replayed feed can't know them.
 
-Pass/fail metrics currently come from the client (e.g. MediaPipe in the browser) and are UNTRUSTED:
-good enough for a demo, but production should recompute them server-side from uploaded frames.
+Two server challenges:
+1. head_turn: Slowly turn head to the left/right, judged server-side via InsightFace.
+2. phrase: Spontaneous challenge of 2 random common words + 4 digits, asked twice,
+   judged via Whisper and Detectif.
 """
 import secrets
 import time
@@ -9,18 +11,27 @@ import uuid
 
 from . import db
 
+COMMON_WORDS = [
+    "amber", "apple", "beacon", "bright", "button", "cactus", "candle", "cherry",
+    "cloud", "clover", "coffee", "dragon", "eagle", "forest", "frost", "garden",
+    "golden", "harbor", "island", "jungle", "lantern", "lemon", "market", "meadow",
+    "monkey", "mountain", "ocean", "orange", "orbit", "planet", "purple", "puzzle",
+    "rabbit", "rainbow", "river", "rocket", "shadow", "silver", "sunset", "tiger",
+    "timber", "valley", "velvet", "violet", "window", "winter", "wizard", "yellow"
+]
+
 
 def issue(vid: str) -> list:
     now = time.time()
     code = "".join(str(secrets.randbelow(10)) for _ in range(4))
+    words = secrets.SystemRandom().sample(COMMON_WORDS, 2)
     side = secrets.choice(["left", "right"])
     issued = [
         {"id": "ch_" + uuid.uuid4().hex[:10], "type": "head_turn", "issued_at": now,
          "prompt": f"Slowly turn your head to the {side}, then back to the camera."},
-        {"id": "ch_" + uuid.uuid4().hex[:10], "type": "hand_wave", "issued_at": now,
-         "prompt": "Slowly wave a hand in front of your face for about 5 seconds."},
-        {"id": "ch_" + uuid.uuid4().hex[:10], "type": "phrase", "issued_at": now, "expected_code": code,
-         "prompt": "Read these digits aloud: " + " ".join(code)},
+        {"id": "ch_" + uuid.uuid4().hex[:10], "type": "phrase", "issued_at": now,
+         "expected_code": code, "expected_digits": code, "expected_words": words,
+         "prompt": f"Repeat twice: {words[0]} {words[1]} {' '.join(code)}"},
     ]
 
     def mut(d):

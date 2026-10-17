@@ -1,728 +1,1040 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<meta name="description" content="Secure identity verification — RyouU"/>
-<title>Identity Verification — RyouU</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description" content="Secure identity verification — RyouU" />
+  <title>Identity Verification — RyouU</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-:root {
-  --bg:      #F8FAFC;
-  --surface: #FFFFFF;
-  --sf2:     #F1F5F9;
-  --border:  #E2E8F0;
-  --bd2:     #CBD5E1;
-  --accent:  #2563EB;
-  --a2:      #4F46E5;
-  --success: #059669;
-  --warn:    #D97706;
-  --danger:  #DC2626;
-  --text:    #0F172A;
-  --sub:     #334155;
-  --muted:   #64748B;
-  --radius:  20px;
-  --shadow:  0 4px 24px rgba(37,99,235,.08);
-  --shadow2: 0 2px 8px rgba(0,0,0,.06);
-}
+    :root {
+      --bg: #F8FAFC;
+      --surface: #FFFFFF;
+      --sf2: #F1F5F9;
+      --border: #E2E8F0;
+      --bd2: #CBD5E1;
+      --accent: #2563EB;
+      --a2: #4F46E5;
+      --success: #059669;
+      --warn: #D97706;
+      --danger: #DC2626;
+      --text: #0F172A;
+      --sub: #334155;
+      --muted: #64748B;
+      --radius: 20px;
+      --shadow: 0 4px 24px rgba(37, 99, 235, .08);
+      --shadow2: 0 2px 8px rgba(0, 0, 0, .06);
+    }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-body {
-  font-family: 'Inter', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  overscroll-behavior: none;
-  -webkit-font-smoothing: antialiased;
-}
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overscroll-behavior: none;
+      -webkit-font-smoothing: antialiased;
+    }
 
-/* ── Header ── */
-.header {
-  width: 100%;
-  max-width: 480px;
-  padding: 24px 24px 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.logo {
-  width: 38px; height: 38px;
-  background: linear-gradient(135deg, var(--accent), var(--a2));
-  border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  color: #FFFFFF;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(37,99,235,.25);
-}
-.logo-text { font-size: 15px; font-weight: 700; color: var(--text); }
-.logo-sub  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    /* ── Header ── */
+    .header {
+      width: 100%;
+      max-width: 480px;
+      padding: 24px 24px 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
 
-/* ── Step pills ── */
-.steps-wrap {
-  width: 100%;
-  max-width: 480px;
-  padding: 20px 24px 0;
-  display: flex;
-  align-items: center;
-  gap: 0;
-}
-.step-pill {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  position: relative;
-}
-.step-pill::after {
-  content: '';
-  position: absolute;
-  top: 11px;
-  left: 55%;
-  width: 90%;
-  height: 2px;
-  background: var(--border);
-  z-index: 0;
-}
-.step-pill:last-child::after { display: none; }
-.step-num {
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 700;
-  background: var(--border);
-  color: var(--muted);
-  z-index: 1;
-  transition: background .3s, color .3s;
-  position: relative;
-}
-.step-num.active {
-  background: linear-gradient(135deg, var(--accent), var(--a2));
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(37,99,235,.35);
-}
-.step-num.done {
-  background: var(--success);
-  color: #fff;
-}
-.step-lbl {
-  font-size: 9px;
-  font-weight: 600;
-  color: var(--muted);
-  text-align: center;
-  letter-spacing: .3px;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-.step-lbl.active { color: var(--accent); font-weight: 700; }
+    .logo {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--accent), var(--a2));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFFFFF;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, .25);
+    }
 
-/* ── Card ── */
-.card {
-  width: 100%;
-  max-width: 480px;
-  margin: 16px 24px 24px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 28px 24px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  box-shadow: var(--shadow);
-}
+    .logo-text {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
 
-/* ── Typography & Step Icons ── */
-.step-icon {
-  width: 56px; height: 56px;
-  border-radius: 16px;
-  display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, rgba(37,99,235,.1), rgba(79,70,229,.1));
-  border: 1px solid rgba(37,99,235,.15);
-  color: var(--accent);
-}
-h2 { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.2; }
-.subtitle { font-size: 13px; color: var(--muted); line-height: 1.65; }
+    .logo-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
 
-/* ── Inputs ── */
-.field-group { display: flex; flex-direction: column; gap: 6px; }
-.field-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--sub);
-  text-transform: uppercase;
-  letter-spacing: .5px;
-}
-.field-input {
-  width: 100%;
-  background: var(--sf2);
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
-  color: var(--text);
-  font-size: 15px;
-  padding: 13px 14px;
-  outline: none;
-  transition: border-color .2s, box-shadow .2s;
-  font-family: 'Inter', sans-serif;
-}
-.field-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
-  background: #FFFFFF;
-}
-.field-input::placeholder { color: var(--muted); }
-.field-row { display: flex; gap: 12px; }
-.field-row .field-group { flex: 1; }
+    /* ── Step pills ── */
+    .steps-wrap {
+      width: 100%;
+      max-width: 480px;
+      padding: 20px 24px 0;
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
 
-/* ── OTP ── */
-.otp-row { display: flex; gap: 10px; justify-content: center; }
-.otp-row input {
-  width: 46px; height: 56px;
-  background: var(--sf2);
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
-  color: var(--text);
-  font-size: 24px; font-weight: 800;
-  text-align: center;
-  outline: none;
-  transition: border-color .2s, box-shadow .2s;
-  font-family: 'Inter', sans-serif;
-}
-.otp-row input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
-  background: #FFFFFF;
-}
+    .step-pill {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      position: relative;
+    }
 
-/* ── Upload zone ── */
-.upload-zone {
-  border: 2px dashed var(--bd2);
-  border-radius: 14px;
-  padding: 32px 16px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color .2s, background .2s;
-  position: relative;
-  background: var(--sf2);
-}
-.upload-zone:hover { border-color: var(--accent); background: rgba(37,99,235,.04); }
-.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-.upload-zone .uz-icon { margin-bottom: 10px; color: var(--accent); }
-.upload-zone p { font-size: 13px; color: var(--muted); }
-.file-ok { font-size: 12px; color: var(--success); font-weight: 600; margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; }
+    .step-pill::after {
+      content: '';
+      position: absolute;
+      top: 11px;
+      left: 55%;
+      width: 90%;
+      height: 2px;
+      background: var(--border);
+      z-index: 0;
+    }
 
-/* ── Camera & Media ── */
-video, canvas {
-  width: 100%;
-  border-radius: 14px;
-  background: #0F172A;
-  aspect-ratio: 4/3;
-  object-fit: cover;
-}
-#selfieVid {
-  transform: scaleX(-1);
-}
-.face-oval-guide {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 170px;
-  height: 220px;
-  border: 2px dashed rgba(255, 255, 255, 0.85);
-  border-radius: 50%;
-  pointer-events: none;
-}
-canvas { display: none; }
+    .step-pill:last-child::after {
+      display: none;
+    }
 
-/* ── Recording badge ── */
-.rec-badge {
-  display: flex; align-items: center; gap: 10px;
-  background: rgba(220,38,38,.08);
-  border: 1px solid rgba(220,38,38,.25);
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 13px; color: var(--danger); font-weight: 600;
-}
-.rec-dot {
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  background: var(--danger);
-  animation: pulse 1s infinite;
-  flex-shrink: 0;
-}
-@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.25} }
-.rec-timer { margin-left: auto; font-size: 12px; color: var(--danger); font-weight: 600; }
+    .step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      background: var(--border);
+      color: var(--muted);
+      z-index: 1;
+      transition: background .3s, color .3s;
+      position: relative;
+    }
 
-/* ── Challenge boxes ── */
-.challenge-box {
-  background: var(--sf2);
-  border: 1.5px solid var(--border);
-  border-radius: 14px;
-  padding: 18px;
-  transition: border-color .3s, background .3s;
-}
-.challenge-box.done-ch { border-color: var(--success); background: rgba(5,150,105,.05); }
-.ch-tag {
-  display: inline-block;
-  background: rgba(37,99,235,.1);
-  color: var(--accent);
-  border-radius: 6px;
-  padding: 3px 9px;
-  font-size: 10px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .5px;
-  margin-bottom: 8px;
-}
-.challenge-box p { font-size: 14px; line-height: 1.6; color: var(--sub); }
+    .step-num.active {
+      background: linear-gradient(135deg, var(--accent), var(--a2));
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, .35);
+    }
 
-/* ── Phrase ── */
-.phrase-code {
-  font-size: 34px; font-weight: 900;
-  letter-spacing: 12px;
-  text-align: center;
-  background: linear-gradient(135deg, var(--accent), var(--a2));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin: 12px 0 6px;
-}
+    .step-num.done {
+      background: var(--success);
+      color: #fff;
+    }
 
-/* ── Check list (processing) ── */
-.check-list { display: flex; flex-direction: column; gap: 10px; }
-.check-item {
-  display: flex; align-items: center; gap: 14px;
-  background: var(--sf2);
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-size: 14px;
-  transition: border-color .3s, background .3s;
-}
-.check-item.running { border-color: rgba(37,99,235,.35); background: #FFFFFF; }
-.check-item.ok { border-color: rgba(5,150,105,.35); background: rgba(5,150,105,.04); }
-.check-item.fail { border-color: rgba(220,38,38,.35); background: rgba(220,38,38,.04); }
-.ci-icon { width: 32px; height: 32px; border-radius: 8px; background: rgba(37,99,235,.08); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.check-item.ok .ci-icon { background: rgba(5,150,105,.1); color: var(--success); }
-.ci-text { flex: 1; }
-.ci-name { font-weight: 600; color: var(--text); }
-.ci-status { font-size: 11px; color: var(--muted); margin-top: 2px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.spinner { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; }
+    .step-lbl {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--muted);
+      text-align: center;
+      letter-spacing: .3px;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
 
-/* ── Buttons ── */
-.btn {
-  width: 100%;
-  padding: 15px;
-  border: none; border-radius: 13px;
-  font-size: 15px; font-weight: 700;
-  cursor: pointer;
-  transition: opacity .15s, transform .1s, box-shadow .15s;
-  font-family: 'Inter', sans-serif;
-  letter-spacing: .1px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-.btn:active { transform: scale(.98); }
-.btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent), var(--a2));
-  color: #fff;
-  box-shadow: 0 4px 14px rgba(37,99,235,.28);
-}
-.btn-primary:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(37,99,235,.38); }
-.btn-secondary {
-  background: var(--sf2);
-  color: var(--sub);
-  border: 1.5px solid var(--border);
-}
-.btn-success {
-  background: linear-gradient(135deg, #059669, #10B981);
-  color: #fff;
-  box-shadow: 0 4px 14px rgba(5,150,105,.25);
-}
-.btn-danger {
-  background: linear-gradient(135deg, #DC2626, #EF4444);
-  color: #fff;
-}
-.btn-sm {
-  width: auto;
-  padding: 9px 18px;
-  font-size: 13px;
-  border-radius: 10px;
-}
-.btn-row { display: flex; gap: 10px; }
-.btn-row .btn { flex: 1; }
+    .step-lbl.active {
+      color: var(--accent);
+      font-weight: 700;
+    }
 
-/* ── Info / warn boxes ── */
-.info-box {
-  background: rgba(37,99,235,.07);
-  border: 1px solid rgba(37,99,235,.2);
-  border-radius: 12px;
-  padding: 13px 15px;
-  font-size: 13px; color: #1E40AF;
-  line-height: 1.55;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-.warn-box {
-  background: rgba(217,119,6,.07);
-  border: 1px solid rgba(217,119,6,.2);
-  border-radius: 12px;
-  padding: 13px 15px;
-  font-size: 13px; color: var(--warn);
-  line-height: 1.55;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-.err-box {
-  background: rgba(220,38,38,.07);
-  border: 1px solid rgba(220,38,38,.2);
-  border-radius: 12px;
-  padding: 13px 15px;
-  font-size: 13px; color: var(--danger);
-  line-height: 1.55;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-.success-box {
-  background: rgba(5,150,105,.07);
-  border: 1px solid rgba(5,150,105,.2);
-  border-radius: 12px;
-  padding: 13px 15px;
-  font-size: 13px; color: var(--success);
-  line-height: 1.55;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
+    /* ── Card ── */
+    .card {
+      width: 100%;
+      max-width: 480px;
+      margin: 16px 24px 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-shadow: var(--shadow);
+    }
 
-/* ── Result ── */
-.result-hero { text-align: center; padding: 16px 0 8px; }
-.result-emblem {
-  width: 80px; height: 80px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 16px;
-}
-.result-emblem.completed {
-  background: rgba(5,150,105,.12);
-  border: 2px solid rgba(5,150,105,.35);
-  color: var(--success);
-}
-.result-emblem.needs_review {
-  background: rgba(217,119,6,.12);
-  border: 2px solid rgba(217,119,6,.35);
-  color: var(--warn);
-}
-.result-emblem.rejected_recommended {
-  background: rgba(220,38,38,.12);
-  border: 2px solid rgba(220,38,38,.35);
-  color: var(--danger);
-}
-.result-title { font-size: 26px; font-weight: 900; margin-bottom: 6px; }
-.result-sub { font-size: 14px; color: var(--muted); line-height: 1.65; }
+    /* ── Typography & Step Icons ── */
+    .step-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(37, 99, 235, .1), rgba(79, 70, 229, .1));
+      border: 1px solid rgba(37, 99, 235, .15);
+      color: var(--accent);
+    }
 
-/* ── Details card ── */
-.details-card {
-  background: var(--sf2);
-  border: 1.5px solid var(--border);
-  border-radius: 14px;
-  overflow: hidden;
-}
-.detail-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-}
-.detail-row:last-child { border-bottom: none; }
-.dl { color: var(--muted); }
-.dv { font-weight: 700; color: var(--text); font-family: monospace; font-size: 12px; }
+    h2 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.2;
+    }
 
-/* ── ID preview ── */
-#idPreviewBox img {
-  width: 100%;
-  max-height: 220px;
-  border-radius: 12px;
-  object-fit: contain;
-  background: #F1F5F9;
-  border: 1.5px solid var(--border);
-}
+    .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
 
-/* ── Toast ── */
-.toast {
-  position: fixed; bottom: 28px; left: 50%;
-  transform: translateX(-50%) translateY(90px);
-  background: var(--text);
-  color: #fff;
-  border-radius: 12px;
-  padding: 12px 22px;
-  font-size: 14px; font-weight: 500;
-  transition: transform .3s ease;
-  z-index: 1000;
-  white-space: nowrap;
-  max-width: 90vw;
-  overflow: hidden; text-overflow: ellipsis;
-  box-shadow: 0 8px 28px rgba(0,0,0,.18);
-}
-.toast.show { transform: translateX(-50%) translateY(0); }
-.toast.ok { background: var(--success); }
-.toast.err { background: var(--danger); }
+    /* ── Inputs ── */
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
 
-.hidden { display: none !important; }
-.mt { margin-top: 4px; }
+    .field-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--sub);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
 
-/* ── Divider ── */
-.divider {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 11px; color: var(--muted); font-weight: 600;
-}
-.divider::before, .divider::after {
-  content: ''; flex: 1;
-  height: 1px; background: var(--border);
-}
+    .field-input {
+      width: 100%;
+      background: var(--sf2);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-size: 15px;
+      padding: 13px 14px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      font-family: 'Inter', sans-serif;
+    }
 
-/* ── Progress dot bar ── */
-.progress-bar-wrap { width: 100%; max-width: 480px; padding: 12px 24px 0; }
-.progress-bar-track { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
-.progress-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--a2));
-  border-radius: 2px;
-  transition: width .5s cubic-bezier(.4,0,.2,1);
-}
-</style>
+    .field-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+      background: #FFFFFF;
+    }
+
+    .field-input::placeholder {
+      color: var(--muted);
+    }
+
+    .field-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .field-row .field-group {
+      flex: 1;
+    }
+
+    /* ── OTP ── */
+    .otp-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .otp-row input {
+      width: 46px;
+      height: 56px;
+      background: var(--sf2);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-size: 24px;
+      font-weight: 800;
+      text-align: center;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .otp-row input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+      background: #FFFFFF;
+    }
+
+    /* ── Upload zone ── */
+    .upload-zone {
+      border: 2px dashed var(--bd2);
+      border-radius: 14px;
+      padding: 32px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+      background: var(--sf2);
+    }
+
+    .upload-zone:hover {
+      border-color: var(--accent);
+      background: rgba(37, 99, 235, .04);
+    }
+
+    .upload-zone input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .upload-zone .uz-icon {
+      margin-bottom: 10px;
+      color: var(--accent);
+    }
+
+    .upload-zone p {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .file-ok {
+      font-size: 12px;
+      color: var(--success);
+      font-weight: 600;
+      margin-top: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ── Camera & Media ── */
+    video,
+    canvas {
+      width: 100%;
+      border-radius: 14px;
+      background: #0F172A;
+      aspect-ratio: 4/3;
+      object-fit: cover;
+    }
+
+    #selfieVid {
+      transform: scaleX(-1);
+    }
+
+    .face-oval-guide {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 170px;
+      height: 220px;
+      border: 2px dashed rgba(255, 255, 255, 0.85);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    canvas {
+      display: none;
+    }
+
+    /* ── Recording badge ── */
+    .rec-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(220, 38, 38, .08);
+      border: 1px solid rgba(220, 38, 38, .25);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    .rec-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--danger);
+      animation: pulse 1s infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .25
+      }
+    }
+
+    .rec-timer {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    /* ── Challenge boxes ── */
+    .challenge-box {
+      background: var(--sf2);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      transition: border-color .3s, background .3s;
+    }
+
+    .challenge-box.done-ch {
+      border-color: var(--success);
+      background: rgba(5, 150, 105, .05);
+    }
+
+    .ch-tag {
+      display: inline-block;
+      background: rgba(37, 99, 235, .1);
+      color: var(--accent);
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 8px;
+    }
+
+    .challenge-box p {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--sub);
+    }
+
+    /* ── Phrase ── */
+    .phrase-code {
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: 12px;
+      text-align: center;
+      background: linear-gradient(135deg, var(--accent), var(--a2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin: 12px 0 6px;
+    }
+
+    /* ── Check list (processing) ── */
+    .check-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--sf2);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      transition: border-color .3s, background .3s;
+    }
+
+    .check-item.running {
+      border-color: rgba(37, 99, 235, .35);
+      background: #FFFFFF;
+    }
+
+    .check-item.ok {
+      border-color: rgba(5, 150, 105, .35);
+      background: rgba(5, 150, 105, .04);
+    }
+
+    .check-item.fail {
+      border-color: rgba(220, 38, 38, .35);
+      background: rgba(220, 38, 38, .04);
+    }
+
+    .ci-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(37, 99, 235, .08);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .check-item.ok .ci-icon {
+      background: rgba(5, 150, 105, .1);
+      color: var(--success);
+    }
+
+    .ci-text {
+      flex: 1;
+    }
+
+    .ci-name {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .ci-status {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .spinner {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 13px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s, box-shadow .15s;
+      font-family: 'Inter', sans-serif;
+      letter-spacing: .1px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:active {
+      transform: scale(.98);
+    }
+
+    .btn:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--a2));
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, .28);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      box-shadow: 0 6px 20px rgba(37, 99, 235, .38);
+    }
+
+    .btn-secondary {
+      background: var(--sf2);
+      color: var(--sub);
+      border: 1.5px solid var(--border);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #059669, #10B981);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(5, 150, 105, .25);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #DC2626, #EF4444);
+      color: #fff;
+    }
+
+    .btn-sm {
+      width: auto;
+      padding: 9px 18px;
+      font-size: 13px;
+      border-radius: 10px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-row .btn {
+      flex: 1;
+    }
+
+    /* ── Info / warn boxes ── */
+    .info-box {
+      background: rgba(37, 99, 235, .07);
+      border: 1px solid rgba(37, 99, 235, .2);
+      border-radius: 12px;
+      padding: 13px 15px;
+      font-size: 13px;
+      color: #1E40AF;
+      line-height: 1.55;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .warn-box {
+      background: rgba(217, 119, 6, .07);
+      border: 1px solid rgba(217, 119, 6, .2);
+      border-radius: 12px;
+      padding: 13px 15px;
+      font-size: 13px;
+      color: var(--warn);
+      line-height: 1.55;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .err-box {
+      background: rgba(220, 38, 38, .07);
+      border: 1px solid rgba(220, 38, 38, .2);
+      border-radius: 12px;
+      padding: 13px 15px;
+      font-size: 13px;
+      color: var(--danger);
+      line-height: 1.55;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .success-box {
+      background: rgba(5, 150, 105, .07);
+      border: 1px solid rgba(5, 150, 105, .2);
+      border-radius: 12px;
+      padding: 13px 15px;
+      font-size: 13px;
+      color: var(--success);
+      line-height: 1.55;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    /* ── Result ── */
+    .result-hero {
+      text-align: center;
+      padding: 16px 0 8px;
+    }
+
+    .result-emblem {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+
+    .result-emblem.completed {
+      background: rgba(5, 150, 105, .12);
+      border: 2px solid rgba(5, 150, 105, .35);
+      color: var(--success);
+    }
+
+    .result-emblem.needs_review {
+      background: rgba(217, 119, 6, .12);
+      border: 2px solid rgba(217, 119, 6, .35);
+      color: var(--warn);
+    }
+
+    .result-emblem.rejected_recommended {
+      background: rgba(220, 38, 38, .12);
+      border: 2px solid rgba(220, 38, 38, .35);
+      color: var(--danger);
+    }
+
+    .result-title {
+      font-size: 26px;
+      font-weight: 900;
+      margin-bottom: 6px;
+    }
+
+    .result-sub {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    /* ── Details card ── */
+    .details-card {
+      background: var(--sf2);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+
+    .dl {
+      color: var(--muted);
+    }
+
+    .dv {
+      font-weight: 700;
+      color: var(--text);
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    /* ── ID preview ── */
+    #idPreviewBox img {
+      width: 100%;
+      max-height: 220px;
+      border-radius: 12px;
+      object-fit: contain;
+      background: #F1F5F9;
+      border: 1.5px solid var(--border);
+    }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(90px);
+      background: var(--text);
+      color: #fff;
+      border-radius: 12px;
+      padding: 12px 22px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: transform .3s ease;
+      z-index: 1000;
+      white-space: nowrap;
+      max-width: 90vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, .18);
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .toast.ok {
+      background: var(--success);
+    }
+
+    .toast.err {
+      background: var(--danger);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .mt {
+      margin-top: 4px;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Progress dot bar ── */
+    .progress-bar-wrap {
+      width: 100%;
+      max-width: 480px;
+      padding: 12px 24px 0;
+    }
+
+    .progress-bar-track {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--a2));
+      border-radius: 2px;
+      transition: width .5s cubic-bezier(.4, 0, .2, 1);
+    }
+  </style>
 </head>
+
 <body>
 
-<!-- Header -->
-<div class="header">
-  <div class="logo">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-      <path d="m9 12 2 2 4-4"/>
-    </svg>
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        <path d="m9 12 2 2 4-4" />
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">RyouU</div>
+      <div class="logo-sub">Identity Verification</div>
+    </div>
   </div>
-  <div>
-    <div class="logo-text">RyouU</div>
-    <div class="logo-sub">Identity Verification</div>
+
+  <!-- Progress bar -->
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="pbar" style="width:0%"></div>
+    </div>
   </div>
-</div>
 
-<!-- Progress bar -->
-<div class="progress-bar-wrap">
-  <div class="progress-bar-track"><div class="progress-bar-fill" id="pbar" style="width:0%"></div></div>
-</div>
-
-<!-- Step pills -->
-<div class="steps-wrap" id="stepsWrap">
-  <div class="step-pill">
-    <div class="step-num active" id="sn1">1</div>
-    <div class="step-lbl active" id="sl1">Details</div>
+  <!-- Step pills -->
+  <div class="steps-wrap" id="stepsWrap">
+    <div class="step-pill">
+      <div class="step-num active" id="sn1">1</div>
+      <div class="step-lbl active" id="sl1">Details</div>
+    </div>
+    <div class="step-pill">
+      <div class="step-num" id="sn2">2</div>
+      <div class="step-lbl" id="sl2">Email</div>
+    </div>
+    <div class="step-pill">
+      <div class="step-num" id="sn3">3</div>
+      <div class="step-lbl" id="sl3">Phone</div>
+    </div>
+    <div class="step-pill">
+      <div class="step-num" id="sn4">4</div>
+      <div class="step-lbl" id="sl4">ID Doc</div>
+    </div>
+    <div class="step-pill">
+      <div class="step-num" id="sn5">5</div>
+      <div class="step-lbl" id="sl5">Selfie</div>
+    </div>
+    <div class="step-pill">
+      <div class="step-num" id="sn6">6</div>
+      <div class="step-lbl" id="sl6">Liveness</div>
+    </div>
+    <div class="step-pill">
+      <div class="step-num" id="sn7">7</div>
+      <div class="step-lbl" id="sl7">Done</div>
+    </div>
   </div>
-  <div class="step-pill">
-    <div class="step-num" id="sn2">2</div>
-    <div class="step-lbl" id="sl2">Email</div>
-  </div>
-  <div class="step-pill">
-    <div class="step-num" id="sn3">3</div>
-    <div class="step-lbl" id="sl3">Phone</div>
-  </div>
-  <div class="step-pill">
-    <div class="step-num" id="sn4">4</div>
-    <div class="step-lbl" id="sl4">ID Doc</div>
-  </div>
-  <div class="step-pill">
-    <div class="step-num" id="sn5">5</div>
-    <div class="step-lbl" id="sl5">Selfie</div>
-  </div>
-  <div class="step-pill">
-    <div class="step-num" id="sn6">6</div>
-    <div class="step-lbl" id="sl6">Liveness</div>
-  </div>
-  <div class="step-pill">
-    <div class="step-num" id="sn7">7</div>
-    <div class="step-lbl" id="sl7">Done</div>
-  </div>
-</div>
 
-<!-- Main card -->
-<div class="card" id="card"></div>
-<div class="toast" id="toast"></div>
+  <!-- Main card -->
+  <div class="card" id="card"></div>
+  <div class="toast" id="toast"></div>
 
-<script>
-'use strict';
+  <script>
+    'use strict';
 
-/* ──────────── SVG Icon Library (Zero Emojis) ──────────── */
-const SVGS = {
-  check: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
-  checkSmall: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="20 6 9 17 4 12"/></svg>`,
-  checkSuccess: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
-  clipboard: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>`,
-  mail: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`,
-  mailSmall: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`,
-  phone: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>`,
-  idCard: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M14 10h4"/><path d="M14 14h4"/></svg>`,
-  userCircle: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>`,
-  target: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
-  activity: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
-  alert: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
-  lock: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
-  info: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
-  camera: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
-  folder: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
-  fileUpload: `<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
-  mic: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>`,
-  refresh: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>`,
-  chat: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
-  audit: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
-  spinner: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1.2s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`,
-  resultApproved: `<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
-  resultReview: `<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
-  resultRejected: `<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-  linkOff: `<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="m5.16 11.75-1.72 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="2" y1="2" x2="22" y2="22"/></svg>`
-};
+    /* ──────────── SVG Icon Library (Zero Emojis) ──────────── */
+    const SVGS = {
+      check: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+      checkSmall: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="20 6 9 17 4 12"/></svg>`,
+      checkSuccess: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+      clipboard: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>`,
+      mail: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`,
+      mailSmall: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`,
+      phone: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>`,
+      idCard: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M14 10h4"/><path d="M14 14h4"/></svg>`,
+      userCircle: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>`,
+      target: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+      activity: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+      alert: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+      lock: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+      info: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+      camera: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+      folder: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+      fileUpload: `<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+      mic: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>`,
+      refresh: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>`,
+      chat: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+      audit: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+      spinner: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1.2s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`,
+      resultApproved: `<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+      resultReview: `<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+      resultRejected: `<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      linkOff: `<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="m5.16 11.75-1.72 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="2" y1="2" x2="22" y2="22"/></svg>`
+    };
 
-/* ──────────── Bootstrap ──────────── */
-const params = new URLSearchParams(location.search);
-const VID    = params.get('v') || '';
-const TOKEN  = params.get('t') || '';
-const API    = (params.get('api') || (location.origin && location.origin !== 'null' ? location.origin : 'http://localhost:8000')).replace(/\/$/, '');
-const FH     = { 'X-Flow-Token': TOKEN };
-const $      = id => document.getElementById(id);
-const card   = $('card');
+    /* ──────────── Bootstrap ──────────── */
+    const params = new URLSearchParams(location.search);
+    const VID = params.get('v') || '';
+    const TOKEN = params.get('t') || '';
+    const API = (params.get('api') || (location.origin && location.origin !== 'null' ? location.origin : 'http://localhost:8000')).replace(/\/$/, '');
+    const FH = { 'X-Flow-Token': TOKEN };
+    const $ = id => document.getElementById(id);
+    const card = $('card');
 
-// Pre-fill from SDK query params
-const PRE_NAME    = params.get('name')    || '';
-const PRE_EMAIL   = params.get('email')   || '';
-const PRE_PHONE   = params.get('phone')   || '';
-const PRE_DOB     = params.get('dob')     || '';
-const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    // Pre-fill from SDK query params
+    const PRE_NAME = params.get('name') || '';
+    const PRE_EMAIL = params.get('email') || '';
+    const PRE_PHONE = params.get('phone') || '';
+    const PRE_DOB = params.get('dob') || '';
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-/* ──────────── State ──────────── */
-const state = {
-  // Form
-  name: PRE_NAME, dob: PRE_DOB, email: PRE_EMAIL,
-  phone: PRE_PHONE,
-  // Files
-  idFile: null, selfieBlob: null,
-  // Video recording
-  mainStream: null, videoRec: null, videoChunks: [],
-  videoBlob: null, recSecs: 0, recTimer: null,
-  // Liveness
-  headTurnDone: false, handWaveDone: false, voiceDone: false,
-  challenges: [], challengeMetrics: {},
-  // Signals
-  focusLossCount: 0, cameraLabel: '', cameraSettings: {},
-  // Camera
-  idStream: null,
-};
+    /* ──────────── State ──────────── */
+    const state = {
+      // Form
+      name: PRE_NAME, dob: PRE_DOB, email: PRE_EMAIL,
+      phone: PRE_PHONE,
+      // Files
+      idFile: null, selfieBlob: null,
+      // Video recording
+      mainStream: null, videoRec: null, videoChunks: [],
+      videoBlob: null, recSecs: 0, recTimer: null,
+      // Liveness
+      headTurnDone: false, handWaveDone: false, voiceDone: false,
+      challenges: [], challengeMetrics: {},
+      // Signals
+      focusLossCount: 0, cameraLabel: '', cameraSettings: {},
+      // Camera
+      idStream: null,
+    };
 
-let phraseCh = null;
-let currentStep = 1;
+    let phraseCh = null;
+    let currentStep = 1;
 
-/* ──────────── Helpers ──────────── */
-function toast(msg, type = '', ms = 3500) {
-  const el = $('toast');
-  el.textContent = msg;
-  el.className = 'toast show' + (type ? ' ' + type : '');
-  setTimeout(() => el.className = 'toast', ms);
-}
-
-async function api(method, path, body, isForm = false) {
-  const opts = { method, headers: { ...FH } };
-  if (body && !isForm) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
-  if (body && isForm)  { opts.body = body; }
-  const r = await fetch(API + path, opts);
-  if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error(r.status + ': ' + t.slice(0, 140)); }
-  return r.json().catch(() => ({}));
-}
-
-async function safeGetMedia(constraints) {
-  try {
-    if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
-      return await navigator.mediaDevices.getUserMedia(constraints);
+    /* ──────────── Helpers ──────────── */
+    function toast(msg, type = '', ms = 3500) {
+      const el = $('toast');
+      el.textContent = msg;
+      el.className = 'toast show' + (type ? ' ' + type : '');
+      setTimeout(() => el.className = 'toast', ms);
     }
-  } catch (e) {
-    console.warn('mediaDevices.getUserMedia warning:', e);
-  }
-  try {
-    const legacy = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
-    if (legacy) {
-      return await new Promise((res, rej) => legacy.call(navigator, constraints, res, rej));
+
+    async function api(method, path, body, isForm = false) {
+      const opts = { method, headers: { ...FH } };
+      if (body && !isForm) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+      if (body && isForm) { opts.body = body; }
+      const r = await fetch(API + path, opts);
+      if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error(r.status + ': ' + t.slice(0, 140)); }
+      return r.json().catch(() => ({}));
     }
-  } catch (e) {
-    console.warn('legacy getUserMedia warning:', e);
-  }
-  return null;
-}
 
-function setStep(n) {
-  currentStep = n;
-  // Progress bar
-  $('pbar').style.width = ((n - 1) / 6 * 100) + '%';
-  // Pills
-  for (let i = 1; i <= 7; i++) {
-    const num = $('sn' + i), lbl = $('sl' + i);
-    if (!num) continue;
-    if (i < n)  { num.className = 'step-num done'; num.innerHTML = SVGS.check; }
-    else if (i === n) { num.className = 'step-num active'; num.textContent = i; lbl.className = 'step-lbl active'; }
-    else        { num.className = 'step-num'; num.textContent = i; lbl.className = 'step-lbl'; }
-    if (i < n) lbl.className = 'step-lbl';
-  }
-}
-
-function buildOtp(rowId, n) {
-  const row = $(rowId); row.innerHTML = '';
-  for (let i = 0; i < n; i++) {
-    const inp = document.createElement('input');
-    inp.maxLength = 1; inp.inputMode = 'numeric';
-    inp.addEventListener('input', () => { if (inp.value && i < n - 1) row.children[i + 1].focus(); });
-    inp.addEventListener('keydown', e => { if (e.key === 'Backspace' && !inp.value && i > 0) row.children[i - 1].focus(); });
-    inp.addEventListener('paste', e => {
-      e.preventDefault();
-      const digits = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, n);
-      for (let j = 0; j < digits.length; j++) { if (row.children[j]) row.children[j].value = digits[j]; }
-      if (row.children[Math.min(digits.length, n) - 1]) row.children[Math.min(digits.length, n) - 1].focus();
-    });
-    row.appendChild(inp);
-  }
-}
-function getOtp(rowId) { return Array.from($(rowId).children).map(i => i.value).join(''); }
-
-// Hardware media wrapper safe for mobile WebViews
-async function safeGetMedia(constraints) {
-  if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
-    try {
-      return await navigator.mediaDevices.getUserMedia(constraints);
-    } catch (e) {
-      console.warn('mediaDevices.getUserMedia failed:', e);
+    async function safeGetMedia(constraints) {
+      try {
+        if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+          return await navigator.mediaDevices.getUserMedia(constraints);
+        }
+      } catch (e) {
+        console.warn('mediaDevices.getUserMedia warning:', e);
+      }
+      try {
+        const legacy = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+        if (legacy) {
+          return await new Promise((res, rej) => legacy.call(navigator, constraints, res, rej));
+        }
+      } catch (e) {
+        console.warn('legacy getUserMedia warning:', e);
+      }
+      return null;
     }
-  }
-  const legacyGetUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
-  if (legacyGetUserMedia) {
-    try {
-      return await new Promise((res, rej) => legacyGetUserMedia.call(navigator, constraints, res, rej));
-    } catch (e) {
-      console.warn('legacy getUserMedia failed:', e);
-    }
-  }
-  return null;
-}
 
-/* ──────────── STEP 1: Details ──────────── */
-function renderDetails() {
-  setStep(1);
-  card.innerHTML = `
+    function setStep(n) {
+      currentStep = n;
+      // Progress bar
+      $('pbar').style.width = ((n - 1) / 6 * 100) + '%';
+      // Pills
+      for (let i = 1; i <= 7; i++) {
+        const num = $('sn' + i), lbl = $('sl' + i);
+        if (!num) continue;
+        if (i < n) { num.className = 'step-num done'; num.innerHTML = SVGS.check; }
+        else if (i === n) { num.className = 'step-num active'; num.textContent = i; lbl.className = 'step-lbl active'; }
+        else { num.className = 'step-num'; num.textContent = i; lbl.className = 'step-lbl'; }
+        if (i < n) lbl.className = 'step-lbl';
+      }
+    }
+
+    function buildOtp(rowId, n) {
+      const row = $(rowId); row.innerHTML = '';
+      for (let i = 0; i < n; i++) {
+        const inp = document.createElement('input');
+        inp.maxLength = 1; inp.inputMode = 'numeric';
+        inp.addEventListener('input', () => { if (inp.value && i < n - 1) row.children[i + 1].focus(); });
+        inp.addEventListener('keydown', e => { if (e.key === 'Backspace' && !inp.value && i > 0) row.children[i - 1].focus(); });
+        inp.addEventListener('paste', e => {
+          e.preventDefault();
+          const digits = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, n);
+          for (let j = 0; j < digits.length; j++) { if (row.children[j]) row.children[j].value = digits[j]; }
+          if (row.children[Math.min(digits.length, n) - 1]) row.children[Math.min(digits.length, n) - 1].focus();
+        });
+        row.appendChild(inp);
+      }
+    }
+    function getOtp(rowId) { return Array.from($(rowId).children).map(i => i.value).join(''); }
+
+    // Hardware media wrapper safe for mobile WebViews
+    async function safeGetMedia(constraints) {
+      if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+        try {
+          return await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (e) {
+          console.warn('mediaDevices.getUserMedia failed:', e);
+        }
+      }
+      const legacyGetUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+      if (legacyGetUserMedia) {
+        try {
+          return await new Promise((res, rej) => legacyGetUserMedia.call(navigator, constraints, res, rej));
+        } catch (e) {
+          console.warn('legacy getUserMedia failed:', e);
+        }
+      }
+      return null;
+    }
+
+    /* ──────────── STEP 1: Details ──────────── */
+    function renderDetails() {
+      setStep(1);
+      card.innerHTML = `
     <div class="step-icon">${SVGS.clipboard}</div>
     <h2>Your Details</h2>
     <p class="subtitle">Enter your details exactly as shown on your government ID. We will verify your email and phone next, followed by your ID document.</p>
@@ -758,33 +1070,33 @@ function renderDetails() {
     </div>
 
     <button class="btn btn-primary" onclick="submitDetails()">Continue</button>`;
-}
+    }
 
-function submitDetails() {
-  const name   = $('fName').value.trim();
-  const dob    = $('fDob').value.trim();
-  const email  = $('fEmail').value.trim();
-  const phone  = $('fPhone').value.trim();
+    function submitDetails() {
+      const name = $('fName').value.trim();
+      const dob = $('fDob').value.trim();
+      const email = $('fEmail').value.trim();
+      const phone = $('fPhone').value.trim();
 
-  const errEl = $('detailsErr'), errMsg = $('detailsErrMsg');
-  const show = msg => { errMsg.textContent = msg; errEl.classList.remove('hidden'); };
+      const errEl = $('detailsErr'), errMsg = $('detailsErrMsg');
+      const show = msg => { errMsg.textContent = msg; errEl.classList.remove('hidden'); };
 
-  if (!name)                         return show('Please enter your full legal name.');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return show('Enter date of birth in YYYY-MM-DD format (e.g. 2000-01-15).');
-  if (!email.includes('@'))          return show('Enter a valid email address.');
-  if (phone.replace(/\D/g,'').length < 10) return show('Enter a valid 10-digit mobile number.');
+      if (!name) return show('Please enter your full legal name.');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return show('Enter date of birth in YYYY-MM-DD format (e.g. 2000-01-15).');
+      if (!email.includes('@')) return show('Enter a valid email address.');
+      if (phone.replace(/\D/g, '').length < 10) return show('Enter a valid 10-digit mobile number.');
 
-  errEl.classList.add('hidden');
-  state.name = name; state.dob = dob;
-  state.email = email; state.phone = phone;
+      errEl.classList.add('hidden');
+      state.name = name; state.dob = dob;
+      state.email = email; state.phone = phone;
 
-  renderEmailOtp();
-}
+      renderEmailOtp();
+    }
 
-/* ──────────── STEP 2: Email OTP ──────────── */
-function renderEmailOtp() {
-  setStep(2);
-  card.innerHTML = `
+    /* ──────────── STEP 2: Email OTP ──────────── */
+    function renderEmailOtp() {
+      setStep(2);
+      card.innerHTML = `
     <div class="step-icon">${SVGS.mail}</div>
     <h2>Verify your email</h2>
     <p class="subtitle">A 6-digit code will be sent to <b>${esc(state.email)}</b>. Check your inbox and enter the code below.</p>
@@ -797,40 +1109,40 @@ function renderEmailOtp() {
       <button class="btn btn-primary" style="margin-top:18px" id="verifyEmailBtn" onclick="verifyEmailOtp()">Verify Email</button>
       <button class="btn btn-secondary btn-sm mt" style="margin-left:auto;display:block" onclick="sendEmailOtp()">Resend Code</button>
     </div>`;
-  buildOtp('emailOtpRow', 6);
-}
+      buildOtp('emailOtpRow', 6);
+    }
 
-async function sendEmailOtp() {
-  const btn = $('sendEmailBtn'); btn.disabled = true; btn.textContent = 'Sending…';
-  try {
-    await api('POST', `/flow/${VID}/otp/send`, { channel: 'email', destination: state.email });
-    $('emailOtpBox').classList.remove('hidden');
-    btn.textContent = 'Resend Code'; btn.disabled = false;
-    toast('Verification code sent to your inbox', 'ok');
-  } catch (e) {
-    toast('Error sending email: ' + e.message, 'err');
-    btn.disabled = false; btn.textContent = 'Send Verification Code';
-  }
-}
+    async function sendEmailOtp() {
+      const btn = $('sendEmailBtn'); btn.disabled = true; btn.textContent = 'Sending…';
+      try {
+        await api('POST', `/flow/${VID}/otp/send`, { channel: 'email', destination: state.email });
+        $('emailOtpBox').classList.remove('hidden');
+        btn.textContent = 'Resend Code'; btn.disabled = false;
+        toast('Verification code sent to your inbox', 'ok');
+      } catch (e) {
+        toast('Error sending email: ' + e.message, 'err');
+        btn.disabled = false; btn.textContent = 'Send Verification Code';
+      }
+    }
 
-async function verifyEmailOtp() {
-  const code = getOtp('emailOtpRow');
-  if (code.length < 6) { toast('Please enter all 6 digits', 'err'); return; }
-  const btn = $('verifyEmailBtn'); btn.disabled = true; btn.textContent = 'Verifying…';
-  try {
-    await api('POST', `/flow/${VID}/otp/verify`, { channel: 'email', code });
-    toast('Email verified successfully', 'ok');
-    setTimeout(renderPhoneOtp, 600);
-  } catch (e) {
-    toast('Incorrect or expired code', 'err');
-    btn.disabled = false; btn.textContent = 'Verify Email';
-  }
-}
+    async function verifyEmailOtp() {
+      const code = getOtp('emailOtpRow');
+      if (code.length < 6) { toast('Please enter all 6 digits', 'err'); return; }
+      const btn = $('verifyEmailBtn'); btn.disabled = true; btn.textContent = 'Verifying…';
+      try {
+        await api('POST', `/flow/${VID}/otp/verify`, { channel: 'email', code });
+        toast('Email verified successfully', 'ok');
+        setTimeout(renderPhoneOtp, 600);
+      } catch (e) {
+        toast('Incorrect or expired code', 'err');
+        btn.disabled = false; btn.textContent = 'Verify Email';
+      }
+    }
 
-/* ──────────── STEP 3: Phone OTP ──────────── */
-function renderPhoneOtp() {
-  setStep(3);
-  card.innerHTML = `
+    /* ──────────── STEP 3: Phone OTP ──────────── */
+    function renderPhoneOtp() {
+      setStep(3);
+      card.innerHTML = `
     <div class="step-icon">${SVGS.phone}</div>
     <h2>Verify your phone</h2>
     <p class="subtitle">A 6-digit code will be sent to <b>${esc(state.phone)}</b>. If SMS delivery is delayed, we automatically deliver the code to your verified email.</p>
@@ -847,58 +1159,60 @@ function renderPhoneOtp() {
       <button class="btn btn-primary" style="margin-top:18px" id="verifyPhoneBtn" onclick="verifyPhoneOtp()">Verify Phone</button>
       <button class="btn btn-secondary btn-sm mt" style="margin-left:auto;display:block" onclick="sendPhoneOtp()">Resend</button>
     </div>`;
-  buildOtp('phoneOtpRow', 6);
-}
+      buildOtp('phoneOtpRow', 6);
+    }
 
-async function sendPhoneOtp() {
-  const btn = $('sendPhoneBtn'); btn.disabled = true; btn.textContent = 'Sending…';
-  try {
-    const res = await api('POST', `/flow/${VID}/otp/send`, { channel: 'phone', destination: state.phone });
-    $('phoneOtpBox').classList.remove('hidden');
-    btn.textContent = 'Resend Code'; btn.disabled = false;
-    if (res.fallback === 'email') {
-      toast('Phone code delivered directly to your email inbox', 'ok', 6000);
-      const noticeBox = document.querySelector('#phoneOtpBox .info-box');
-      if (noticeBox) {
-        noticeBox.innerHTML = `${SVGS.mailSmall}<span><b>SMS gateway requires commercial deposit.</b><br/>Your phone OTP was sent directly to: <b>${res.email || state.email}</b>.` +
-          (res.dev_code ? `<br/><span style="display:inline-block;margin-top:6px;font-weight:800;color:var(--accent);background:rgba(37,99,235,0.1);padding:3px 10px;border-radius:6px">Code: ${res.dev_code}</span>` : '') + `</span>`;
-      }
-    } else {
-      toast('Verification code sent', 'ok');
-      if (res.dev_code) {
-        const noticeBox = document.querySelector('#phoneOtpBox .info-box');
-        if (noticeBox) {
-          noticeBox.innerHTML += `<br/><span style="display:inline-block;margin-top:6px;font-weight:800;color:var(--accent);background:rgba(37,99,235,0.1);padding:3px 10px;border-radius:6px">Code: ${res.dev_code}</span>`;
+    async function sendPhoneOtp() {
+      const btn = $('sendPhoneBtn'); btn.disabled = true; btn.textContent = 'Sending…';
+      try {
+        const res = await api('POST', `/flow/${VID}/otp/send`, { channel: 'phone', destination: state.phone });
+        $('phoneOtpBox').classList.remove('hidden');
+        btn.textContent = 'Resend Code'; btn.disabled = false;
+        if (res.fallback === 'email') {
+          toast('Phone code delivered directly to your email inbox', 'ok', 6000);
+          const noticeBox = document.querySelector('#phoneOtpBox .info-box');
+          if (noticeBox) {
+            noticeBox.innerHTML = `${SVGS.mailSmall}<span><b>SMS gateway requires commercial deposit.</b><br/>Your phone OTP was sent directly to: <b>${res.email || state.email}</b>.` +
+              (res.dev_code ? `<br/><span style="display:inline-block;margin-top:6px;font-weight:800;color:var(--accent);background:rgba(37,99,235,0.1);padding:3px 10px;border-radius:6px">Code: ${res.dev_code}</span>` : '') + `</span>`;
+          }
+        } else {
+          toast('Verification code sent', 'ok');
+          if (res.dev_code) {
+            const noticeBox = document.querySelector('#phoneOtpBox .info-box');
+            if (noticeBox) {
+              noticeBox.innerHTML += `<br/><span style="display:inline-block;margin-top:6px;font-weight:800;color:var(--accent);background:rgba(37,99,235,0.1);padding:3px 10px;border-radius:6px">Code: ${res.dev_code}</span>`;
+            }
+          }
         }
+      } catch (e) {
+        toast('Error sending code: ' + e.message, 'err');
+        btn.disabled = false; btn.textContent = 'Send Phone Code';
       }
     }
-  } catch (e) {
-    toast('Error sending code: ' + e.message, 'err');
-    btn.disabled = false; btn.textContent = 'Send Phone Code';
-  }
-}
 
-async function verifyPhoneOtp() {
-  const code = getOtp('phoneOtpRow');
-  if (code.length < 6) { toast('Please enter all 6 digits', 'err'); return; }
-  const btn = $('verifyPhoneBtn'); btn.disabled = true; btn.textContent = 'Verifying…';
-  try {
-    await api('POST', `/flow/${VID}/otp/verify`, { channel: 'phone', code });
-    toast('Phone verified successfully', 'ok');
-    setTimeout(renderIdUpload, 600);
-  } catch (e) {
-    toast('Incorrect or expired code', 'err');
-    btn.disabled = false; btn.textContent = 'Verify Phone';
-  }
-}
+    async function verifyPhoneOtp() {
+      const code = getOtp('phoneOtpRow');
+      if (code.length < 6) { toast('Please enter all 6 digits', 'err'); return; }
+      const btn = $('verifyPhoneBtn'); btn.disabled = true; btn.textContent = 'Verifying…';
+      try {
+        await api('POST', `/flow/${VID}/otp/verify`, { channel: 'phone', code });
+        toast('Phone verified successfully', 'ok');
+        setTimeout(renderIdUpload, 600);
+      } catch (e) {
+        toast('Incorrect or expired code', 'err');
+        btn.disabled = false; btn.textContent = 'Verify Phone';
+      }
+    }
 
-/* ──────────── STEP 4: ID Upload ──────────── */
-function renderIdUpload() {
-  setStep(4);
-  card.innerHTML = `
+    /* ──────────── STEP 4: ID Upload ──────────── */
+    function renderIdUpload() {
+      setStep(4);
+      card.innerHTML = `
     <div class="step-icon">${SVGS.idCard}</div>
     <h2>Upload your ID</h2>
     <p class="subtitle">Submit a clear photo of your government-issued ID — Aadhaar, PAN, Passport, or Driving Licence.</p>
+
+    <div id="idGateError" class="hidden"></div>
 
     <!-- File picker -->
     <div id="idFileMode">
@@ -926,66 +1240,88 @@ function renderIdUpload() {
       <img id="idPreviewImg"/>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
         <span class="file-ok" id="idPreviewLbl">${SVGS.checkSmall} Document ready</span>
-        <div class="btn btn-secondary btn-sm" style="position:relative;cursor:pointer;overflow:hidden">
-          <input type="file" accept="image/*" capture="environment" onchange="onIdFile(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+        <button class="btn btn-secondary btn-sm" onclick="resetId()">
           ${SVGS.refresh} Change
-        </div>
+        </button>
       </div>
-      <button class="btn btn-primary" id="idNextBtn" style="margin-top:14px" onclick="uploadId()">Continue to Selfie</button>
+      <button class="btn btn-primary" id="idNextBtn" style="margin-top:14px" onclick="uploadId()">Verify ID Details</button>
     </div>
 
     <div class="info-box">
       ${SVGS.info}
-      <span>All four corners must be visible. Face photo on the card must be clear and legible.</span>
+      <span>All four corners must be visible. Face photo and details on the card must be clear and legible.</span>
     </div>`;
-}
+    }
 
-function onIdFile(inp) {
-  if (!inp.files?.[0]) return;
-  const f = inp.files[0];
-  state.idFile = f;
-  showIdPreview(URL.createObjectURL(f), f.name);
-}
+    function onIdFile(inp) {
+      if (!inp.files?.[0]) return;
+      const f = inp.files[0];
+      state.idFile = f;
+      showIdPreview(URL.createObjectURL(f), f.name);
+    }
 
-function showIdPreview(url, name) {
-  $('idPreviewImg').src = url;
-  $('idPreviewLbl').innerHTML = SVGS.checkSmall + ' ' + (name || 'Document ready');
-  $('idPreviewBox').classList.remove('hidden');
-  $('idFileMode').classList.add('hidden');
-}
+    function showIdPreview(url, name) {
+      $('idPreviewImg').src = url;
+      $('idPreviewLbl').innerHTML = SVGS.checkSmall + ' ' + (name || 'Document ready');
+      $('idPreviewBox').classList.remove('hidden');
+      $('idFileMode').classList.add('hidden');
+    }
 
-function resetId() {
-  state.idFile = null;
-  $('idPreviewBox').classList.add('hidden');
-  $('idFileMode').classList.remove('hidden');
-}
+    function resetId() {
+      state.idFile = null;
+      $('idPreviewBox').classList.add('hidden');
+      $('idFileMode').classList.remove('hidden');
+      const errEl = $('idGateError');
+      if (errEl) errEl.classList.add('hidden');
+    }
 
-async function uploadId() {
-  if (!state.idFile) return;
-  const btn = $('idNextBtn'); btn.disabled = true; btn.textContent = 'Uploading…';
-  const fd = new FormData();
-  fd.append('file', state.idFile, state.idFile.name || 'id.jpg');
-  try {
-    await api('POST', `/flow/${VID}/upload/id_image`, fd, true);
-    toast('ID document uploaded successfully', 'ok');
-    setTimeout(renderSelfie, 400);
-  } catch (e) {
-    toast('Upload failed: ' + e.message, 'err');
-    btn.disabled = false; btn.textContent = 'Continue to Selfie';
-  }
-}
+    async function uploadId() {
+      if (!state.idFile) return;
+      const btn = $('idNextBtn'); btn.disabled = true; btn.textContent = 'Verifying ID…';
+      const fd = new FormData();
+      fd.append('file', state.idFile, state.idFile.name || 'id.jpg');
+      try {
+        const errEl = $('idGateError');
+        if (errEl) errEl.classList.add('hidden');
+        await api('POST', `/flow/${VID}/upload/id_image`, fd, true);
+        toast('ID details verified successfully', 'ok');
+        setTimeout(renderSelfie, 400);
+      } catch (e) {
+        state.idAttempts = (state.idAttempts || 0) + 1;
+        const remaining = Math.max(0, 3 - state.idAttempts);
+        const errEl = $('idGateError');
+        if (errEl) {
+          errEl.innerHTML = `
+            <div class="warn-box" style="margin-top:12px;margin-bottom:12px;background:#fef2f2;border-color:#fca5a5;color:#991b1b">
+              ${SVGS.alertTriangle}
+              <div>
+                <b>ID Verification Failed (${state.idAttempts}/3 attempts)</b><br>
+                <span>${esc(e.message || 'Details do not match your ID')}</span>
+                ${remaining === 0 ? '<br><b style="color:#b91c1c">Gate Locked. Maximum attempts exceeded.</b>' : `<br><span style="font-size:11px;color:#7f1d1d">${remaining} attempt(s) remaining</span>`}
+              </div>
+            </div>`;
+          errEl.classList.remove('hidden');
+        }
+        toast('ID verification failed: ' + e.message, 'err');
+        btn.disabled = remaining === 0;
+        btn.textContent = remaining === 0 ? 'Gate Locked' : 'Retry ID Verification';
+      }
+    }
 
-/* ──────────── STEP 5: Selfie + Continuous Video ──────────── */
-function renderSelfie() {
-  setStep(5);
-  card.innerHTML = `
+    /* ──────────── STEP 5: Selfie + Continuous Video ──────────── */
+    function renderSelfie() {
+      setStep(5);
+      card.innerHTML = `
     <div class="step-icon">${SVGS.userCircle}</div>
     <h2>Live Selfie</h2>
     <p class="subtitle">Look directly at the camera. Ensure your face is centered and well-lit. Remove glasses if possible.</p>
 
-    <!-- Live stream container (when WebRTC is supported) -->
-    <div id="selfieStreamBox" class="hidden" style="position:relative;overflow:hidden;border-radius:14px">
-      <video id="selfieVid" autoplay muted playsinline></video>
+    <div id="selfieGateError" class="hidden"></div>
+    <div id="selfieBlockedBox" class="hidden"></div>
+
+    <!-- Live stream container (live getUserMedia strictly required) -->
+    <div id="selfieStreamBox" style="position:relative;overflow:hidden;border-radius:14px">
+      <video id="selfieVid" autoplay muted playsinline style="width:100%;border-radius:14px;background:#000;display:block"></video>
       <div class="face-oval-guide"></div>
       <div id="recIndicator" class="hidden" style="position:absolute;top:10px;right:10px;background:rgba(220,38,38,.85);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;display:flex;align-items:center;gap:6px">
         <span style="width:7px;height:7px;border-radius:50%;background:#fff;animation:pulse 1s infinite;display:inline-block"></span>
@@ -994,200 +1330,186 @@ function renderSelfie() {
       <button class="btn btn-primary" id="captureBtn" style="margin-top:14px" onclick="captureSelfie()">${SVGS.camera} Snap Photo</button>
     </div>
 
-    <!-- Direct camera card -->
-    <div id="selfieNativeBox">
-      <div class="upload-zone" style="padding:28px 16px;position:relative;cursor:pointer">
-        <input type="file" id="selfieZoneInput" accept="image/*" capture="user" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
-        <div style="width:60px;height:60px;border-radius:50%;background:rgba(37,99,235,0.08);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
-          ${SVGS.userCircle}
-        </div>
-        <p><b>Tap to open front camera</b></p>
-        <p style="font-size:12px;margin-top:4px">Takes a live selfie with front camera</p>
-      </div>
-
-      <div style="position:relative;margin-top:14px">
-        <div class="btn btn-primary" style="position:relative;cursor:pointer;overflow:hidden">
-          <input type="file" id="selfieBtnInput" accept="image/*" capture="user" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
-          ${SVGS.camera} Open Camera & Take Selfie
-        </div>
-      </div>
-
-      <div class="btn-row" style="margin-top:10px">
-        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="tryStartWebRtc()">
-          ${SVGS.activity} Live Viewfinder
-        </button>
-        <div class="btn btn-secondary btn-sm" style="flex:1;position:relative;cursor:pointer;overflow:hidden">
-          <input type="file" id="selfieGalleryInput" accept="image/*" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
-          ${SVGS.folder} Gallery
-        </div>
-      </div>
-    </div>
-
     <!-- Captured photo preview -->
     <div id="selfiePreviewBox" class="hidden">
       <img id="selfiePreviewImg" style="width:100%;max-height:280px;border-radius:14px;object-fit:cover;border:1.5px solid var(--border)"/>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
         <span class="file-ok">${SVGS.checkSmall} Selfie ready</span>
-        <div class="btn btn-secondary btn-sm" style="position:relative;cursor:pointer;overflow:hidden">
-          <input type="file" accept="image/*" capture="user" onchange="onNativeSelfieCaptured(this)" style="position:absolute;inset:0;opacity:0.001;width:100%;height:100%;cursor:pointer;z-index:10;display:block"/>
+        <button class="btn btn-secondary btn-sm" onclick="retakeSelfie()">
           ${SVGS.refresh} Retake
-        </div>
+        </button>
       </div>
       <button class="btn btn-success" id="selfieNextBtn" style="margin-top:14px" onclick="goLiveness()">Continue to Liveness</button>
     </div>
 
     <canvas id="selfieCanvas" style="display:none"></canvas>`;
 
-  startMainSession();
-}
-
-function attachStreamToVideo(stream) {
-  const vid = $('selfieVid');
-  if (!vid) return;
-  vid.srcObject = stream;
-  vid.setAttribute('playsinline', 'true');
-  vid.setAttribute('webkit-playsinline', 'true');
-  vid.muted = true;
-  vid.onloadedmetadata = () => {
-    vid.play().catch(e => console.warn('vid play notice:', e));
-    const streamBox = $('selfieStreamBox');
-    const nativeBox = $('selfieNativeBox');
-    if (streamBox) streamBox.classList.remove('hidden');
-    if (nativeBox) nativeBox.classList.add('hidden');
-  };
-  const streamBox = $('selfieStreamBox');
-  const nativeBox = $('selfieNativeBox');
-  if (streamBox) streamBox.classList.remove('hidden');
-  if (nativeBox) nativeBox.classList.add('hidden');
-
-  try {
-    if (typeof MediaRecorder !== 'undefined') {
-      const mime = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(m => MediaRecorder.isTypeSupported(m)) || '';
-      state.videoRec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-      state.videoChunks = [];
-      state.videoRec.ondataavailable = e => { if (e.data.size > 0) state.videoChunks.push(e.data); };
-      state.videoRec.start(500);
-
-      const ind = $('recIndicator');
-      if (ind) ind.classList.remove('hidden');
-
-      state.recSecs = 0;
-      if (state.recTimer) clearInterval(state.recTimer);
-      state.recTimer = setInterval(() => {
-        state.recSecs++;
-        const lbl = $('recTimerLbl');
-        if (lbl) lbl.textContent = state.recSecs + 's';
-      }, 1000);
+      startMainSession();
     }
-  } catch (recErr) {
-    console.warn('Video recorder notice:', recErr);
-  }
-}
 
-async function startMainSession() {
-  try {
-    const stream = await safeGetMedia({ video: { facingMode: { ideal: 'user' } } })
-                || await safeGetMedia({ video: true });
-    if (stream) {
-      state.mainStream = stream;
-      attachStreamToVideo(stream);
+    function attachStreamToVideo(stream) {
+      const vid = $('selfieVid');
+      if (!vid) return;
+      vid.srcObject = stream;
+      vid.setAttribute('playsinline', 'true');
+      vid.setAttribute('webkit-playsinline', 'true');
+      vid.muted = true;
+      vid.onloadedmetadata = () => {
+        vid.play().catch(e => console.warn('vid play notice:', e));
+      };
+
+      try {
+        if (typeof MediaRecorder !== 'undefined') {
+          const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+          state.videoRec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+          state.videoChunks = [];
+          state.videoRec.ondataavailable = e => { if (e.data.size > 0) state.videoChunks.push(e.data); };
+          state.videoRec.start(500);
+
+          const ind = $('recIndicator');
+          if (ind) ind.classList.remove('hidden');
+
+          state.recSecs = 0;
+          if (state.recTimer) clearInterval(state.recTimer);
+          state.recTimer = setInterval(() => {
+            state.recSecs++;
+            const lbl = $('recTimerLbl');
+            if (lbl) lbl.textContent = state.recSecs + 's';
+          }, 1000);
+        }
+      } catch (recErr) {
+        console.warn('Video recorder notice:', recErr);
+      }
     }
-  } catch (_) {
-    // Graceful fallback to native camera controls
-  }
-}
 
-async function tryStartWebRtc() {
-  toast('Requesting live camera stream…', 'info');
-  try {
-    const stream = await safeGetMedia({ video: { facingMode: { ideal: 'user' } } })
-                || await safeGetMedia({ video: true });
-    if (stream) {
-      state.mainStream = stream;
-      attachStreamToVideo(stream);
-      toast('Camera connected!', 'ok');
-    } else {
-      toast('Direct viewfinder not supported in this view. Use the Camera button above or open in Chrome.', 'err', 4500);
+    async function startMainSession() {
+      try {
+        const stream = await safeGetMedia({ video: { facingMode: { ideal: 'user' } }, audio: true })
+          || await safeGetMedia({ video: true, audio: true })
+          || await safeGetMedia({ video: true });
+        if (stream) {
+          state.mainStream = stream;
+          attachStreamToVideo(stream);
+          const blockBox = $('selfieBlockedBox');
+          if (blockBox) blockBox.classList.add('hidden');
+          const streamBox = $('selfieStreamBox');
+          if (streamBox) streamBox.classList.remove('hidden');
+        } else {
+          showCameraBlocked();
+        }
+      } catch (err) {
+        showCameraBlocked(err.message);
+      }
     }
-  } catch (e) {
-    toast('Camera notice: ' + (e.message || 'Permission needed'), 'err', 4000);
-  }
-}
 
-function openExternalBrowser() {
-  try {
-    if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'open_browser' }));
-      return;
+    function showCameraBlocked(msg) {
+      const streamBox = $('selfieStreamBox');
+      if (streamBox) streamBox.classList.add('hidden');
+      const blockBox = $('selfieBlockedBox');
+      if (blockBox) {
+        blockBox.innerHTML = `
+          <div class="warn-box" style="margin-top:16px;background:#fef2f2;border-color:#fca5a5;color:#991b1b">
+            ${SVGS.alertTriangle}
+            <div>
+              <b>Live Camera Access Required</b><br>
+              <span>A live camera stream is strictly required to verify your identity. Photo uploads are disabled to prevent spoofing. ${esc(msg || 'Please grant camera permission in your browser or device settings.')}</span>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:14px" onclick="startMainSession()">${SVGS.refresh} Retry Camera Permission</button>
+        `;
+        blockBox.classList.remove('hidden');
+      }
     }
-  } catch (_) {}
-  window.open(location.href, '_blank');
-}
 
-function captureSelfie() {
-  const vid = $('selfieVid'), canvas = $('selfieCanvas');
-  if (!vid || !vid.videoWidth) {
-    const input = $('selfieBtnInput') || $('selfieZoneInput');
-    if (input) input.click();
-    return;
-  }
-  canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
-  canvas.getContext('2d').drawImage(vid, 0, 0);
-  canvas.toBlob(blob => {
-    state.selfieBlob = blob;
-    $('selfiePreviewImg').src = URL.createObjectURL(blob);
-    $('selfiePreviewBox').classList.remove('hidden');
-    $('selfieStreamBox').classList.add('hidden');
-    $('selfieNativeBox').classList.add('hidden');
-    toast('Selfie captured successfully', 'ok');
-  }, 'image/jpeg', 0.92);
-}
+    function captureSelfie() {
+      const vid = $('selfieVid'), canvas = $('selfieCanvas');
+      if (!vid || !vid.videoWidth) {
+        toast('Camera not ready yet. Please wait for viewfinder…', 'warn');
+        return;
+      }
+      canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
+      canvas.getContext('2d').drawImage(vid, 0, 0);
+      canvas.toBlob(blob => {
+        state.selfieBlob = blob;
+        $('selfiePreviewImg').src = URL.createObjectURL(blob);
+        $('selfiePreviewBox').classList.remove('hidden');
+        $('selfieStreamBox').classList.add('hidden');
+        toast('Selfie captured successfully', 'ok');
+      }, 'image/jpeg', 0.92);
+    }
 
-function onNativeSelfieCaptured(input) {
-  if (!input.files || !input.files[0]) return;
-  const file = input.files[0];
-  state.selfieBlob = file;
-  const url = URL.createObjectURL(file);
-  $('selfiePreviewImg').src = url;
-  $('selfiePreviewBox').classList.remove('hidden');
-  $('selfieNativeBox').classList.add('hidden');
-  $('selfieStreamBox').classList.add('hidden');
-  toast('Selfie photo captured successfully', 'ok');
-}
+    function retakeSelfie() {
+      state.selfieBlob = null;
+      $('selfiePreviewBox').classList.add('hidden');
+      $('selfieStreamBox').classList.remove('hidden');
+      const errEl = $('selfieGateError');
+      if (errEl) errEl.classList.add('hidden');
+    }
 
-async function goLiveness() {
-  if (!state.selfieBlob) return;
-  const btn = $('selfieNextBtn'); btn.disabled = true; btn.textContent = 'Uploading…';
-  const fd = new FormData();
-  fd.append('file', new File([state.selfieBlob], 'selfie.jpg', { type: 'image/jpeg' }));
-  try {
-    await api('POST', `/flow/${VID}/upload/selfie`, fd, true);
-    renderLiveness();
-  } catch (e) {
-    toast('Selfie upload failed: ' + e.message, 'err');
-    btn.disabled = false; btn.textContent = 'Continue to Liveness';
-  }
-}
+    async function goLiveness() {
+      if (!state.selfieBlob) return;
+      const btn = $('selfieNextBtn'); btn.disabled = true; btn.textContent = 'Verifying Selfie…';
+      const fd = new FormData();
+      fd.append('file', new File([state.selfieBlob], 'selfie.jpg', { type: 'image/jpeg' }));
+      try {
+        const errEl = $('selfieGateError');
+        if (errEl) errEl.classList.add('hidden');
+        await api('POST', `/flow/${VID}/upload/selfie`, fd, true);
+        toast('Selfie verified against ID', 'ok');
+        renderLiveness();
+      } catch (e) {
+        state.selfieAttempts = (state.selfieAttempts || 0) + 1;
+        const remaining = Math.max(0, 3 - state.selfieAttempts);
+        const errEl = $('selfieGateError');
+        if (errEl) {
+          errEl.innerHTML = `
+            <div class="warn-box" style="margin-top:12px;margin-bottom:12px;background:#fef2f2;border-color:#fca5a5;color:#991b1b">
+              ${SVGS.alertTriangle}
+              <div>
+                <b>Face Match Gate Failed (${state.selfieAttempts}/3 attempts)</b><br>
+                <span>${esc(e.message || 'Face photo does not match the photo on your ID')}</span>
+                ${remaining === 0 ? '<br><b style="color:#b91c1c">Gate Locked. Maximum attempts exceeded.</b>' : `<br><span style="font-size:11px;color:#7f1d1d">${remaining} attempt(s) remaining</span>`}
+              </div>
+            </div>`;
+          errEl.classList.remove('hidden');
+        }
+        toast('Face match failed: ' + e.message, 'err');
+        btn.disabled = remaining === 0;
+        btn.textContent = remaining === 0 ? 'Gate Locked' : 'Retry Selfie';
+      }
+    }
 
-/* ──────────── STEP 6: Liveness Challenges ──────────── */
-async function renderLiveness() {
-  setStep(6);
-  try {
-    const data = await api('GET', `/flow/${VID}/challenges`);
-    state.challenges = data.challenges || [];
-    phraseCh = state.challenges.find(c => c.type === 'phrase');
-  } catch (e) {
-    console.warn('Challenges load notice:', e);
-  }
+    /* ──────────── STEP 6: Liveness Challenges ──────────── */
+    async function renderLiveness() {
+      setStep(6);
+      try {
+        const data = await api('POST', `/flow/${VID}/challenges`);
+        state.challenges = data.challenges || [];
+      } catch (e) {
+        card.innerHTML = `
+          <div class="warn-box" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">
+            ${SVGS.alertTriangle}
+            <div>
+              <b>Failed to load liveness challenges</b><br>
+              <span>${esc(e.message || 'Server error generating spontaneous challenge')}</span>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:14px" onclick="renderLiveness()">${SVGS.refresh} Retry Challenges</button>
+        `;
+        return;
+      }
 
-  const headCh  = state.challenges.find(c => c.type === 'head_turn');
-  const waveCh  = state.challenges.find(c => c.type === 'hand_wave');
-  const phrase  = phraseCh ? phraseCh.expected_code.split('').join(' ') : '7 4 2 9';
+      const headCh = state.challenges.find(c => c.type === 'head_turn');
+      const phraseCh = state.challenges.find(c => c.type === 'phrase');
+      const phrasePrompt = phraseCh ? (phraseCh.prompt || 'Read the spontaneous phrase') : '';
+      const phraseWords = (phraseCh && phraseCh.expected_words) ? phraseCh.expected_words.join(' ') : '';
+      const phraseDigits = (phraseCh && (phraseCh.expected_digits || phraseCh.expected_code)) ? (phraseCh.expected_digits || phraseCh.expected_code).split('').join(' ') : '';
+      const fullPhraseDisplay = `${phraseWords} ${phraseDigits}`.trim();
 
-  card.innerHTML = `
+      card.innerHTML = `
     <div class="step-icon">${SVGS.target}</div>
     <h2>Liveness Verification</h2>
-    <p class="subtitle">Complete the three verification challenges below. This ensures physical presence and detects deepfake injection.</p>
+    <p class="subtitle">Complete the verification challenges below. This ensures physical presence and detects deepfake injection.</p>
 
     <div class="rec-badge">
       <span class="rec-dot"></span>
@@ -1198,28 +1520,21 @@ async function renderLiveness() {
     <!-- Challenge 1 -->
     <div class="challenge-box" id="chHead">
       <span class="ch-tag">Challenge 1 — Head Turn</span>
-      <p>${headCh ? headCh.prompt : 'Slowly turn your head to the left, then back to the center.'}</p>
+      <p>${headCh ? esc(headCh.prompt) : 'Slowly turn your head to the left/right, then back to the center.'}</p>
       <button class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="doneHead('${headCh ? headCh.id : ''}')">Mark as Completed</button>
     </div>
 
-    <!-- Challenge 2 -->
-    <div class="challenge-box" id="chWave">
-      <span class="ch-tag">Challenge 2 — Hand Wave</span>
-      <p>${waveCh ? waveCh.prompt : 'Slowly wave your hand across your camera in front of your face for 3–5 seconds.'}</p>
-      <button class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="doneWave('${waveCh ? waveCh.id : ''}')">Mark as Completed</button>
-    </div>
-
-    <!-- Challenge 3 -->
+    <!-- Challenge 2: Spoken Verification -->
     <div class="challenge-box">
-      <span class="ch-tag">Challenge 3 — Spoken Verification</span>
+      <span class="ch-tag">Challenge 2 — Spoken Verification</span>
       <p>Read the details below clearly into your microphone:</p>
       <p style="margin-top:8px">1. Your <b>full name</b> — <i>${esc(state.name) || 'as on your ID'}</i></p>
       <p>2. Your <b>date of birth</b> — <i>${esc(state.dob) || 'YYYY-MM-DD'}</i></p>
-      <p>3. This spontaneous verification phrase:</p>
-      <div class="phrase-code">${phrase}</div>
+      <p>3. Spontaneous verification phrase (repeat twice):</p>
+      <div class="phrase-code">${fullPhraseDisplay || esc(phrasePrompt)}</div>
       <div class="warn-box" style="margin-top:0">
         ${SVGS.lock}
-        <span>Read the spontaneous phrase above clearly. Never read secret OTP codes aloud.</span>
+        <span>${esc(phrasePrompt || 'Read the spontaneous phrase above clearly twice. Never read secret OTP codes aloud.')}</span>
       </div>
     </div>
 
@@ -1230,157 +1545,149 @@ async function renderLiveness() {
 
     <button class="btn btn-primary hidden" id="submitBtn" style="margin-top:4px" onclick="submitAll()">Submit Verification & Run AI Checks</button>`;
 
-  // Live rec timer update
-  const timerInterval = setInterval(() => {
-    const el = $('recTimerLbl');
-    if (el) el.textContent = state.recSecs + 's';
-    else clearInterval(timerInterval);
-  }, 1000);
-}
-
-function doneHead(id) {
-  state.headTurnDone = true;
-  const el = $('chHead');
-  el.classList.add('done-ch');
-  const btn = el.querySelector('button');
-  btn.innerHTML = SVGS.checkSmall + ' Completed';
-  btn.disabled = true;
-  if (id) state.challengeMetrics[id] = { yaw_range_deg: 35, face_present_ratio: 0.95 };
-  checkReady();
-}
-
-function doneWave(id) {
-  state.handWaveDone = true;
-  const el = $('chWave');
-  el.classList.add('done-ch');
-  const btn = el.querySelector('button');
-  btn.innerHTML = SVGS.checkSmall + ' Completed';
-  btn.disabled = true;
-  if (id) state.challengeMetrics[id] = { occlusion_ratio: 0.25, face_present_ratio_after: 0.95 };
-  checkReady();
-}
-
-function checkReady() {
-  if (state.headTurnDone && state.handWaveDone && state.voiceDone) {
-    $('submitBtn').classList.remove('hidden');
-  }
-}
-
-let micRec = null, micChunks = [];
-async function startMic() {
-  try {
-    let micStream;
-    if (state.mainStream && state.mainStream.getAudioTracks().length > 0) {
-      micStream = new MediaStream(state.mainStream.getAudioTracks());
-    } else {
-      micStream = await safeGetMedia({ audio: true });
+      // Live rec timer update
+      const timerInterval = setInterval(() => {
+        const el = $('recTimerLbl');
+        if (el) el.textContent = state.recSecs + 's';
+        else clearInterval(timerInterval);
+      }, 1000);
     }
 
-    if (!micStream) {
-      // In mobile webview where audio tracks aren't accessible, gracefully complete voice step
-      toast('Microphone input completed', 'ok');
-      state.voiceDone = true;
-      $('micSection').innerHTML = `<div class="success-box">${SVGS.checkSuccess} Spoken details confirmed — click Submit below</div>`;
+    function doneHead(id) {
+      state.headTurnDone = true;
+      const el = $('chHead');
+      if (el) {
+        el.classList.add('done-ch');
+        const btn = el.querySelector('button');
+        if (btn) {
+          btn.innerHTML = SVGS.checkSmall + ' Completed';
+          btn.disabled = true;
+        }
+      }
+      if (id) state.challengeMetrics[id] = { yaw_range_deg: 35, face_present_ratio: 0.95 };
       checkReady();
-      return;
     }
 
-    const mime = (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) ? 'audio/webm;codecs=opus' : 'audio/webm';
-    micRec = new MediaRecorder(micStream, { mimeType: mime });
-    micChunks = [];
-    micRec.ondataavailable = e => { if (e.data.size > 0) micChunks.push(e.data); };
-    micRec.onstop = () => {
-      state.voiceDone = true;
-      $('micSection').innerHTML = `<div class="success-box">${SVGS.checkSuccess} Voice recorded successfully — click Submit below</div>`;
-      checkReady();
-    };
-    micRec.start(200);
+    function checkReady() {
+      if (state.headTurnDone && state.voiceDone) {
+        $('submitBtn').classList.remove('hidden');
+      }
+    }
 
-    let micSecs = 0;
-    const micTimer = setInterval(() => {
-      micSecs++;
-      const el = $('micSecs');
-      if (el) el.textContent = micSecs + 's';
-    }, 1000);
+    let micRec = null, micChunks = [];
+    async function startMic() {
+      try {
+        let micStream;
+        if (state.mainStream && state.mainStream.getAudioTracks().length > 0) {
+          micStream = new MediaStream(state.mainStream.getAudioTracks());
+        } else {
+          micStream = await safeGetMedia({ audio: true });
+        }
 
-    $('micSection').innerHTML = `
+        if (!micStream) {
+          toast('Microphone input completed', 'ok');
+          state.voiceDone = true;
+          $('micSection').innerHTML = `<div class="success-box">${SVGS.checkSuccess} Spoken details confirmed — click Submit below</div>`;
+          checkReady();
+          return;
+        }
+
+        const mime = (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) ? 'audio/webm;codecs=opus' : 'audio/webm';
+        micRec = new MediaRecorder(micStream, { mimeType: mime });
+        micChunks = [];
+        micRec.ondataavailable = e => { if (e.data.size > 0) micChunks.push(e.data); };
+        micRec.onstop = () => {
+          state.voiceDone = true;
+          $('micSection').innerHTML = `<div class="success-box">${SVGS.checkSuccess} Voice recorded successfully — click Submit below</div>`;
+          checkReady();
+        };
+        micRec.start(200);
+
+        let micSecs = 0;
+        const micTimer = setInterval(() => {
+          micSecs++;
+          const el = $('micSecs');
+          if (el) el.textContent = micSecs + 's';
+        }, 1000);
+
+        $('micSection').innerHTML = `
       <div class="rec-badge">
         <span class="rec-dot"></span>
         Speaking… <span id="micSecs">0s</span>
       </div>
       <button class="btn btn-secondary" style="margin-top:12px" onclick="stopMic()">Finish Speaking</button>`;
-  } catch (e) {
-    console.warn('Microphone start notice:', e);
-    state.voiceDone = true;
-    $('micSection').innerHTML = `<div class="success-box">${SVGS.checkSuccess} Spoken details confirmed — click Submit below</div>`;
-    checkReady();
-  }
-}
+      } catch (e) {
+        console.warn('Microphone start notice:', e);
+        state.voiceDone = true;
+        $('micSection').innerHTML = `<div class="success-box">${SVGS.checkSuccess} Spoken details confirmed — click Submit below</div>`;
+        checkReady();
+      }
+    }
 
-function stopMic() { if (micRec && micRec.state !== 'inactive') micRec.stop(); }
+    function stopMic() { if (micRec && micRec.state !== 'inactive') micRec.stop(); }
 
-/* ──────────── STEP 7: Submit & Automated Pipeline ──────────── */
-async function submitAll() {
-  const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Finalizing…';
+    /* ──────────── STEP 7: Submit & Automated Pipeline ──────────── */
+    async function submitAll() {
+      const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Finalizing…';
 
-  // 1. Stop video recording
-  let videoBlob = null;
-  if (state.videoRec && state.videoRec.state !== 'inactive') {
-    await new Promise(res => {
-      state.videoRec.onstop = () => {
-        videoBlob = new Blob(state.videoChunks, { type: state.videoRec.mimeType });
-        res();
-      };
-      state.videoRec.stop();
-    });
-  }
-  clearInterval(state.recTimer);
+      // 1. Stop video recording
+      let videoBlob = null;
+      if (state.videoRec && state.videoRec.state !== 'inactive') {
+        await new Promise(res => {
+          state.videoRec.onstop = () => {
+            videoBlob = new Blob(state.videoChunks, { type: state.videoRec.mimeType });
+            res();
+          };
+          state.videoRec.stop();
+        });
+      }
+      clearInterval(state.recTimer);
 
-  // Stop all media tracks
-  if (state.mainStream) state.mainStream.getTracks().forEach(t => t.stop());
+      // Stop all media tracks
+      if (state.mainStream) state.mainStream.getTracks().forEach(t => t.stop());
 
-  // 2. Upload voice audio
-  if (micChunks.length > 0) {
-    const voiceBlob = new Blob(micChunks, { type: 'audio/webm' });
-    const fd = new FormData();
-    fd.append('file', new File([voiceBlob], 'challenge_audio.webm', { type: 'audio/webm' }));
-    try { await api('POST', `/flow/${VID}/upload/challenge_audio`, fd, true); }
-    catch (e) { console.warn('Audio upload notice:', e.message); }
-  }
+      // 2. Upload voice audio
+      if (micChunks.length > 0) {
+        const voiceBlob = new Blob(micChunks, { type: 'audio/webm' });
+        const fd = new FormData();
+        fd.append('file', new File([voiceBlob], 'challenge_audio.webm', { type: 'audio/webm' }));
+        try { await api('POST', `/flow/${VID}/upload/challenge_audio`, fd, true); }
+        catch (e) { console.warn('Audio upload notice:', e.message); }
+      }
 
-  // 3. Upload recorded video (for ViT deepfake analysis)
-  if (videoBlob) {
-    const ext = videoBlob.type.includes('mp4') ? '.mp4' : '.webm';
-    const fd = new FormData();
-    fd.append('file', new File([videoBlob], 'challenge_video' + ext, { type: videoBlob.type }));
-    try { await api('POST', `/flow/${VID}/upload/challenge_video`, fd, true); }
-    catch (e) { console.warn('Video upload notice:', e.message); }
-  }
+      // 3. Upload recorded video (for ViT deepfake analysis)
+      if (videoBlob) {
+        const ext = videoBlob.type.includes('mp4') ? '.mp4' : '.webm';
+        const fd = new FormData();
+        fd.append('file', new File([videoBlob], 'challenge_video' + ext, { type: videoBlob.type }));
+        try { await api('POST', `/flow/${VID}/upload/challenge_video`, fd, true); }
+        catch (e) { console.warn('Video upload notice:', e.message); }
+      }
 
-  // 4. Submit challenge results
-  const results = state.challenges.map(ch => ({ id: ch.id, metrics: state.challengeMetrics[ch.id] || {} }));
-  try { await api('POST', `/flow/${VID}/challenges/result`, { results }); }
-  catch (e) { console.warn('Challenge result notice:', e.message); }
+      // 4. Submit challenge results
+      const results = state.challenges.map(ch => ({ id: ch.id, metrics: state.challengeMetrics[ch.id] || {} }));
+      try { await api('POST', `/flow/${VID}/challenges/result`, { results }); }
+      catch (e) { console.warn('Challenge result notice:', e.message); }
 
-  renderProcessing();
-}
+      renderProcessing();
+    }
 
-/* ──────────── Processing Animation ──────────── */
-async function renderProcessing() {
-  setStep(7);
-  $('pbar').style.width = '100%';
+    /* ──────────── Processing Animation ──────────── */
+    async function renderProcessing() {
+      setStep(7);
+      $('pbar').style.width = '100%';
 
-  const checks = [
-    { icon: SVGS.idCard,  name: 'Face match to ID',       status: 'Comparing selfie with ID photo…' },
-    { icon: SVGS.mic,     name: 'AI voice analysis',       status: 'Checking for synthetic audio…' },
-    { icon: SVGS.activity,name: 'Deepfake detection',      status: 'Analyzing video for ViT manipulation…' },
-    { icon: SVGS.chat,    name: 'Spoken details match',    status: 'Verifying spoken name, DOB & spontaneous phrase…' },
-    { icon: SVGS.mail,    name: 'Email OTP',               status: 'Verified' },
-    { icon: SVGS.phone,   name: 'Phone OTP',               status: 'Verified' },
-    { icon: SVGS.audit,   name: 'Environment checks',      status: 'Scanning for spoofing signals…' },
-  ];
+      const checks = [
+        { icon: SVGS.idCard, name: 'Face match to ID', status: 'Comparing selfie with ID photo…' },
+        { icon: SVGS.mic, name: 'AI voice analysis', status: 'Checking for synthetic audio…' },
+        { icon: SVGS.activity, name: 'Deepfake detection', status: 'Analyzing video for ViT manipulation…' },
+        { icon: SVGS.chat, name: 'Spoken details match', status: 'Verifying spoken name, DOB & spontaneous phrase…' },
+        { icon: SVGS.mail, name: 'Email OTP', status: 'Verified' },
+        { icon: SVGS.phone, name: 'Phone OTP', status: 'Verified' },
+        { icon: SVGS.audit, name: 'Environment checks', status: 'Scanning for spoofing signals…' },
+      ];
 
-  card.innerHTML = `
+      card.innerHTML = `
     <div class="step-icon">${SVGS.activity}</div>
     <h2>Running verification checks</h2>
     <p class="subtitle">Our AI engine is evaluating your session. This typically takes 10–20 seconds — please keep this page open.</p>
@@ -1396,63 +1703,63 @@ async function renderProcessing() {
         </div>`).join('')}
     </div>`;
 
-  // Kick off backend pipeline
-  try { await api('POST', `/flow/${VID}/submit`); }
-  catch (e) { if (!e.message.includes('409')) toast('Submit notice: ' + e.message, 'err'); }
+      // Kick off backend pipeline
+      try { await api('POST', `/flow/${VID}/submit`); }
+      catch (e) { if (!e.message.includes('409')) toast('Submit notice: ' + e.message, 'err'); }
 
-  // Animate checks completing sequentially
-  checks.forEach((_, i) => setTimeout(() => {
-    const el = $('ci' + i);
-    if (el) {
-      el.classList.remove('running');
-      el.classList.add('ok');
-      el.querySelector('.spinner').innerHTML = SVGS.checkSuccess;
+      // Animate checks completing sequentially
+      checks.forEach((_, i) => setTimeout(() => {
+        const el = $('ci' + i);
+        if (el) {
+          el.classList.remove('running');
+          el.classList.add('ok');
+          el.querySelector('.spinner').innerHTML = SVGS.checkSuccess;
+        }
+      }, 1800 + i * 1200));
+
+      // Poll for completion
+      let tries = 0;
+      const poll = setInterval(async () => {
+        tries++;
+        try {
+          const ctx = await api('GET', `/flow/${VID}/context`);
+          if (['completed', 'needs_review', 'rejected_recommended'].includes(ctx.status)) {
+            clearInterval(poll);
+            setTimeout(() => showResult(ctx.status), 1200);
+          }
+        } catch (_) { }
+        if (tries > 60) { clearInterval(poll); toast('Request timed out. Please contact support.', 'err'); }
+      }, 2500);
     }
-  }, 1800 + i * 1200));
 
-  // Poll for completion
-  let tries = 0;
-  const poll = setInterval(async () => {
-    tries++;
-    try {
-      const ctx = await api('GET', `/flow/${VID}/context`);
-      if (['completed', 'needs_review', 'rejected_recommended'].includes(ctx.status)) {
-        clearInterval(poll);
-        setTimeout(() => showResult(ctx.status), 1200);
-      }
-    } catch (_) {}
-    if (tries > 60) { clearInterval(poll); toast('Request timed out. Please contact support.', 'err'); }
-  }, 2500);
-}
+    /* ──────────── Final Verification Outcome ──────────── */
+    function showResult(status) {
+      const map = {
+        completed: {
+          emblem: 'completed',
+          icon: SVGS.resultApproved,
+          title: 'Identity Verified!',
+          sub: 'Your identity has been confirmed. You may return to the RyouU app.',
+          color: 'var(--success)'
+        },
+        needs_review: {
+          emblem: 'needs_review',
+          icon: SVGS.resultReview,
+          title: 'Under Review',
+          sub: "Our compliance team is reviewing your session. You'll be notified shortly.",
+          color: 'var(--warn)'
+        },
+        rejected_recommended: {
+          emblem: 'rejected_recommended',
+          icon: SVGS.resultRejected,
+          title: 'Verification Issue',
+          sub: 'We could not verify your identity. Please contact support or try again.',
+          color: 'var(--danger)'
+        },
+      };
+      const res = map[status] || map['needs_review'];
 
-/* ──────────── Final Verification Outcome ──────────── */
-function showResult(status) {
-  const map = {
-    completed: {
-      emblem: 'completed',
-      icon: SVGS.resultApproved,
-      title: 'Identity Verified!',
-      sub: 'Your identity has been confirmed. You may return to the RyouU app.',
-      color: 'var(--success)'
-    },
-    needs_review: {
-      emblem: 'needs_review',
-      icon: SVGS.resultReview,
-      title: 'Under Review',
-      sub: "Our compliance team is reviewing your session. You'll be notified shortly.",
-      color: 'var(--warn)'
-    },
-    rejected_recommended: {
-      emblem: 'rejected_recommended',
-      icon: SVGS.resultRejected,
-      title: 'Verification Issue',
-      sub: 'We could not verify your identity. Please contact support or try again.',
-      color: 'var(--danger)'
-    },
-  };
-  const res = map[status] || map['needs_review'];
-
-  card.innerHTML = `
+      card.innerHTML = `
     <div class="result-hero">
       <div class="result-emblem ${res.emblem}">
         ${res.icon}
@@ -1475,34 +1782,40 @@ function showResult(status) {
 
     <button class="btn btn-primary" onclick="notifyApp('${status}')">Return to ApexPay</button>`;
 
-  notifyApp(status);
-}
+      notifyApp(status);
+    }
 
-function notifyApp(status) {
-  const payload = JSON.stringify({ type: 'kyc_complete', vid: VID, status });
-  if (window.ReactNativeWebView) { window.ReactNativeWebView.postMessage(payload); return; }
-  if (window.parent !== window) { window.parent.postMessage(payload, '*'); return; }
-  location.hash = 'kyc_done_' + status;
-}
+    function notifyApp(status) {
+      const msgObj = { type: 'kyc.done', vid: VID, status };
+      const payload = JSON.stringify(msgObj);
+      if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+        window.ReactNativeWebView.postMessage(payload);
+      }
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(msgObj, '*');
+        window.parent.postMessage(payload, '*');
+      }
+      location.hash = 'kyc.done:' + VID;
+    }
 
-/* ──────────── Security signals ──────────── */
-document.addEventListener('visibilitychange', () => { if (document.hidden) state.focusLossCount++; });
-window.addEventListener('blur', () => state.focusLossCount++);
+    /* ──────────── Security signals ──────────── */
+    document.addEventListener('visibilitychange', () => { if (document.hidden) state.focusLossCount++; });
+    window.addEventListener('blur', () => state.focusLossCount++);
 
-/* ──────────── Expose onclick handlers ──────────── */
-Object.assign(window, {
-  submitDetails, sendEmailOtp, verifyEmailOtp, sendPhoneOtp, verifyPhoneOtp,
-  onIdFile, resetId, uploadId,
-  captureSelfie, onNativeSelfieCaptured, tryStartWebRtc, openExternalBrowser,
-  goLiveness, doneHead, doneWave, startMic, stopMic,
-  submitAll, notifyApp,
-});
+    /* ──────────── Expose onclick handlers ──────────── */
+    Object.assign(window, {
+      submitDetails, sendEmailOtp, verifyEmailOtp, sendPhoneOtp, verifyPhoneOtp,
+      onIdFile, resetId, uploadId,
+      captureSelfie, retakeSelfie, startMainSession, openExternalBrowser,
+      goLiveness, doneHead, startMic, stopMic,
+      submitAll, notifyApp,
+    });
 
-/* ──────────── Boot ──────────── */
-if (VID && TOKEN) {
-  renderDetails();
-} else {
-  card.innerHTML = `
+    /* ──────────── Boot ──────────── */
+    if (VID && TOKEN) {
+      renderDetails();
+    } else {
+      card.innerHTML = `
     <div style="text-align:center;padding:40px 20px">
       <div class="result-emblem needs_review" style="margin-bottom:20px">
         ${SVGS.linkOff}
@@ -1510,7 +1823,8 @@ if (VID && TOKEN) {
       <h2>Invalid Session</h2>
       <p class="subtitle" style="margin-top:10px">Please open this verification session directly from the ApexPay app.</p>
     </div>`;
-}
-</script>
+    }
+  </script>
 </body>
+
 </html>

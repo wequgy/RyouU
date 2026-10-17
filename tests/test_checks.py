@@ -93,13 +93,11 @@ def test_spoken_details_partial_missing_and_no_whisper(monkeypatch):
 # ---------------- liveness ----------------
 def _issued(now):
     return [{"id": "c1", "type": "head_turn", "issued_at": now},
-            {"id": "c2", "type": "hand_wave", "issued_at": now},
             {"id": "c3", "type": "phrase", "issued_at": now, "expected_code": "4821"}]
 
 
 def _answers(now, **over):
     r = {"c1": {"metrics": {"yaw_range_deg": 40, "face_present_ratio": 0.95}, "answered_at": now + 5},
-         "c2": {"metrics": {"occlusion_ratio": 0.3, "face_present_ratio_after": 0.95}, "answered_at": now + 9},
          "c3": {"metrics": {}, "answered_at": now + 14}}   # phrase: judged from the transcript
     r.update(over)
     return r
@@ -118,7 +116,7 @@ def test_liveness_pass_fail_and_phrase():
     data = {"challenges": {"issued": _issued(now), "results": late}, "spoken_transcripts": {"phrase": "4821"}}
     r = liveness.liveness(ctx(data))
     assert r.status == "fail" and r.details["head_turn"]["note"] == "answered too late"
-    missing = _answers(now); del missing["c2"]
+    missing = _answers(now); del missing["c3"]
     data = {"challenges": {"issued": _issued(now), "results": missing}, "spoken_transcripts": {"phrase": "4821"}}
     assert liveness.liveness(ctx(data)).status == "fail"
     assert liveness.liveness(ctx({})).status == "skipped"
@@ -129,7 +127,7 @@ def test_challenges_are_random_and_not_replayable(client):
     v = db.create_verification(tenant["id"], "r", "lenient", {}, "h", 600)
     first = challenges.issue(v["id"])
     codes = {c["expected_code"] for _ in range(1) for c in first if c["type"] == "phrase"}
-    assert len(first) == 3 and len(codes) == 1
+    assert len(first) == 2 and len(codes) == 1
     ok = challenges.record_results(v["id"], [{"id": first[0]["id"], "metrics": {}}])
     assert ok["rejected"] == []
     again = challenges.record_results(v["id"], [{"id": first[0]["id"], "metrics": {}}])      # replay

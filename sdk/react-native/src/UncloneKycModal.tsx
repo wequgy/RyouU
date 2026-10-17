@@ -81,7 +81,7 @@ export const UncloneKycModal: React.FC<UncloneKycModalProps> = ({
       const msg = JSON.parse(event.nativeEvent.data);
       // When page reports completion/submission, NEVER trust verdict from WebView.
       // ALWAYS poll the customer backend to fetch the authentic server verdict.
-      if (msg.type === 'kyc_submitted' || msg.type === 'kyc_completed' || msg.status === 'processing') {
+      if (msg.type === 'kyc.done' || msg.type === 'kyc_complete' || msg.type === 'kyc_submitted' || msg.type === 'kyc_completed' || msg.status === 'processing') {
         if (!verificationId) return;
         setSubmitting(true);
         const result = await pollVerificationStatus({

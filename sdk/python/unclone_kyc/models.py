@@ -54,3 +54,11 @@ class VerificationResult:
             created_at=float(data.get("created_at", 0.0)),
             updated_at=float(data.get("updated_at", 0.0)),
         )
+
+    @property
+    def verdict(self) -> Optional[str]:
+        return self.final_decision or self.decision
+
+    @property
+    def is_approved(self) -> bool:
+        return self.verdict == "approved"

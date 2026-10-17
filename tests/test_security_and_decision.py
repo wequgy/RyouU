@@ -46,10 +46,10 @@ def test_uncertain_required_budget():
     strict, lenient = POLICIES["strict"], POLICIES["lenient"]
     res = [R(n, "pass") for n in strict["required"] if n != "liveness"] + [R("liveness", "uncertain")]
     assert pipeline.decide(strict, res)["decision"] == "needs_review"          # strict tolerates 0
-    res_l = [R("face_match", "pass"), R("email_otp", "uncertain")]
+    res_l = [R("id_details", "pass"), R("face_match", "pass"), R("email_otp", "uncertain")]
     out = pipeline.decide(lenient, res_l)                                       # lenient tolerates 1
     assert out["decision"] == "approved" and "accepted as uncertain" in out["reasons"][0]
-    res_2 = [R("face_match", "uncertain"), R("email_otp", "uncertain")]
+    res_2 = [R("id_details", "pass"), R("face_match", "uncertain"), R("email_otp", "uncertain")]
     assert pipeline.decide(lenient, res_2)["decision"] == "needs_review"
 
 

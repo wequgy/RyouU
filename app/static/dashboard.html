@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RyouU — KYC Compliance Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --surface: #111827;
+      --surface-border: #1f2937;
+      --card-bg: #162032;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.12);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.12);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.12);
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--surface-border);
+      padding: 14px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-badge {
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white;
+      font-weight: 800;
+      font-size: 14px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      letter-spacing: 0.5px;
+    }
+    .brand-title {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .key-input-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--card-bg);
+      border: 1px solid var(--surface-border);
+      padding: 6px 12px;
+      border-radius: var(--radius);
+    }
+    .key-input-box input {
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-size: 13px;
+      outline: none;
+      width: 220px;
+      font-family: monospace;
+    }
+
+    /* Main container */
+    main {
+      flex: 1;
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Metrics summary */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .metric-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .metric-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .metric-value {
+      font-size: 26px;
+      font-weight: 700;
+    }
+
+    /* Controls bar */
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: 12px 18px;
+    }
+    .filter-tabs {
+      display: flex;
+      gap: 8px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tab-btn.active {
+      background: var(--card-bg);
+      color: var(--text-main);
+      border-color: var(--surface-border);
+    }
+    .btn {
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-secondary { background: var(--surface-border); color: var(--text-main); }
+
+    /* Table */
+    .table-container {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+    th {
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--surface-border);
+      padding: 14px 18px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    td {
+      padding: 14px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      vertical-align: middle;
+    }
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.015);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .badge-approved { background: var(--success-bg); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-review { background: var(--warning-bg); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-rejected { background: var(--danger-bg); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    /* Drawer / Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(3px);
+      display: flex;
+      justify-content: flex-end;
+      z-index: 100;
+    }
+    .drawer {
+      background: var(--surface);
+      width: 100%;
+      max-width: 620px;
+      height: 100%;
+      border-left: 1px solid var(--surface-border);
+      display: flex;
+      flex-direction: column;
+      box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.2s ease-out;
+    }
+    @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    .drawer-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--surface-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .drawer-body {
+      padding: 24px;
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .drawer-footer {
+      padding: 18px 24px;
+      border-top: 1px solid var(--surface-border);
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+    .check-item {
+      background: var(--card-bg);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .check-name { font-weight: 600; font-size: 13px; }
+    .check-reason { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span class="brand-badge">RyouU</span>
+      <span class="brand-title">KYC Compliance & Review Engine</span>
+    </div>
+    <div class="header-actions">
+      <div class="key-input-box">
+        <span style="font-size:12px;color:var(--text-muted)">API Key:</span>
+        <input type="password" id="apiKeyInput" value="kyc_demo_strict_key" onchange="saveKey()">
+      </div>
+      <button class="btn btn-secondary" onclick="loadSessions()">Refresh</button>
+      <a href="/readyz" target="_blank" class="btn btn-secondary" style="text-decoration:none">Health & Models</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Summary Metrics -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Total Sessions</div>
+        <div class="metric-value" id="mTotal">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Auto-Approved</div>
+        <div class="metric-value" id="mApproved" style="color:var(--success)">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Needs Human Review</div>
+        <div class="metric-value" id="mReview" style="color:var(--warning)">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Rejected / Attacks</div>
+        <div class="metric-value" id="mRejected" style="color:var(--danger)">0</div>
+      </div>
+    </div>
+
+    <!-- Controls Bar -->
+    <div class="controls-bar">
+      <div class="filter-tabs">
+        <button class="tab-btn active" onclick="setFilter('all', this)">All Sessions</button>
+        <button class="tab-btn" onclick="setFilter('review', this)">Review Queue</button>
+        <button class="tab-btn" onclick="setFilter('completed', this)">Completed</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted)" id="lastUpdatedLbl">Auto-refresh active</div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Session ID</th>
+            <th>Reference ID</th>
+            <th>Policy</th>
+            <th>System Verdict</th>
+            <th>Final Decision</th>
+            <th>Reasons / Flags</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="sessionsTbody">
+          <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Loading sessions…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Drawer Modal -->
+  <div id="drawerBackdrop" class="modal-backdrop hidden" onclick="closeDrawer(event)">
+    <div class="drawer" onclick="event.stopPropagation()">
+      <div class="drawer-header">
+        <div>
+          <h3 id="dSessionId" style="font-size:16px">Session Details</h3>
+          <p id="dRefId" style="font-size:12px;color:var(--text-muted);margin-top:2px"></p>
+        </div>
+        <button class="btn btn-secondary" onclick="closeDrawer()">✕</button>
+      </div>
+      <div class="drawer-body" id="dContent">
+        <!-- Injected via JS -->
+      </div>
+      <div class="drawer-footer" id="dFooter">
+        <!-- Actions Injected via JS -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentSessions = [];
+    let activeFilter = 'all';
+    let activeSession = null;
+
+    function getKey() {
+      return localStorage.getItem('ryouu_kyc_key') || document.getElementById('apiKeyInput').value.trim();
+    }
+
+    function saveKey() {
+      const k = document.getElementById('apiKeyInput').value.trim();
+      localStorage.setItem('ryouu_kyc_key', k);
+      loadSessions();
+    }
+
+    async function api(path, options = {}) {
+      const key = getKey();
+      const res = await fetch(path, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          ...(options.headers || {})
+        }
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || err.message || res.statusText);
+      }
+      return res.json();
+    }
+
+    function setFilter(filt, btn) {
+      activeFilter = filt;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderTable();
+    }
+
+    async function loadSessions() {
+      try {
+        const data = await api('/v1/verifications?limit=100');
+        currentSessions = data.data || [];
+        updateMetrics();
+        renderTable();
+        document.getElementById('lastUpdatedLbl').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+      } catch (e) {
+        document.getElementById('sessionsTbody').innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:30px">Failed to load: ${e.message}</td></tr>`;
+      }
+    }
+
+    function updateMetrics() {
+      document.getElementById('mTotal').textContent = currentSessions.length;
+      document.getElementById('mApproved').textContent = currentSessions.filter(s => (s.final_decision || s.decision) === 'approved').length;
+      document.getElementById('mReview').textContent = currentSessions.filter(s => (s.final_decision || s.decision) === 'needs_review').length;
+      document.getElementById('mRejected').textContent = currentSessions.filter(s => (s.final_decision || s.decision) === 'rejected_recommended' || s.final_decision === 'rejected').length;
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('sessionsTbody');
+      let filtered = currentSessions;
+      if (activeFilter === 'review') {
+        filtered = currentSessions.filter(s => (s.final_decision || s.decision) === 'needs_review');
+      } else if (activeFilter === 'completed') {
+        filtered = currentSessions.filter(s => s.status === 'completed');
+      }
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">No verifications match the selected view</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(s => {
+        const dec = s.decision || 'processing';
+        const finalDec = s.final_decision;
+        const badgeClass = dec === 'approved' ? 'badge-approved' : (dec === 'needs_review' ? 'badge-review' : 'badge-rejected');
+        const finalBadge = finalDec === 'approved' ? 'badge-approved' : (finalDec ? 'badge-rejected' : '');
+
+        return `
+          <tr>
+            <td style="font-family:monospace;font-weight:600">${s.id}</td>
+            <td>${s.reference_id || '—'}</td>
+            <td><span style="font-size:11px;color:var(--text-muted)">${s.policy}</span></td>
+            <td><span class="badge ${badgeClass}">${dec.replace(/_/g, ' ')}</span></td>
+            <td>${finalDec ? `<span class="badge ${finalBadge}">${finalDec}</span>` : '<span style="color:var(--text-muted);font-size:12px">Pending Human Call</span>'}</td>
+            <td style="max-width:240px;color:var(--text-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(s.reasons || []).join('; ') || 'All checks clear'}</td>
+            <td>
+              <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="openDrawer('${s.id}')">Inspect</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openDrawer(vid) {
+      const s = currentSessions.find(x => x.id === vid);
+      if (!s) return;
+      activeSession = s;
+
+      document.getElementById('dSessionId').textContent = s.id;
+      document.getElementById('dRefId').textContent = `Reference: ${s.reference_id || 'None'} · Policy: ${s.policy}`;
+
+      const checks = s.results || [];
+      const reasons = s.reasons || [];
+      const review = s.review;
+
+      let opId = null;
+      const voiceCheck = checks.find(c => c.name === 'voice_ai');
+      if (voiceCheck && voiceCheck.details && voiceCheck.details.operation_id) {
+        opId = voiceCheck.details.operation_id;
+      }
+
+      document.getElementById('dContent').innerHTML = `
+        <div style="background:var(--card-bg);padding:14px 18px;border-radius:8px;border:1px solid var(--surface-border)">
+          <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Decision Status</div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+            <span class="badge ${s.decision === 'approved' ? 'badge-approved' : (s.decision === 'needs_review' ? 'badge-review' : 'badge-rejected')}">${s.decision}</span>
+            ${review ? `<span style="font-size:12px">Human Decided: <b>${review.decision}</b> (${review.note || 'No note'})</span>` : ''}
+          </div>
+          ${reasons.length ? `<div style="margin-top:10px;font-size:12px;color:var(--danger)"><b>Signals / Flags:</b><ul style="margin-left:18px;margin-top:4px">${reasons.map(r => `<li>${r}</li>`).join('')}</ul></div>` : ''}
+        </div>
+
+        <div>
+          <h4 style="font-size:13px;color:var(--text-muted);text-transform:uppercase;margin-bottom:10px">Per-Check Engine Results</h4>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${checks.map(c => `
+              <div class="check-item">
+                <div>
+                  <div class="check-name">${c.name}</div>
+                  <div class="check-reason">${c.reason || 'Completed'}</div>
+                </div>
+                <div>
+                  <span class="badge ${c.status === 'pass' ? 'badge-approved' : (c.status === 'uncertain' ? 'badge-review' : 'badge-rejected')}">${c.status}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        ${opId ? `
+          <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);padding:12px 16px;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--accent)">Detectif Voice Check</div>
+              <div style="font-size:11px;color:var(--text-muted)">Op ID: ${opId}</div>
+            </div>
+            <button class="btn btn-secondary" style="font-size:11px" onclick="reportFalseAlarm('${opId}')">Report False Alarm</button>
+          </div>
+        ` : ''}
+      `;
+
+      document.getElementById('dFooter').innerHTML = `
+        <button class="btn btn-danger" onclick="makeDecision('${s.id}', 'rejected')">Reject Verification</button>
+        <button class="btn btn-success" onclick="makeDecision('${s.id}', 'approved')">Approve Verification</button>
+      `;
+
+      document.getElementById('drawerBackdrop').classList.remove('hidden');
+    }
+
+    function closeDrawer() {
+      document.getElementById('drawerBackdrop').classList.add('hidden');
+      activeSession = null;
+    }
+
+    async function makeDecision(vid, decision) {
+      try {
+        await api(`/v1/verifications/${vid}/review`, {
+          method: 'POST',
+          body: JSON.stringify({ decision, note: `Decided via compliance dashboard by reviewer` })
+        });
+        alert(`Verification marked as ${decision.toUpperCase()}`);
+        closeDrawer();
+        loadSessions();
+      } catch (e) {
+        alert('Action failed: ' + e.message);
+      }
+    }
+
+    async function reportFalseAlarm(opId) {
+      try {
+        await api(`/v1/operations/${opId}/feedback`, {
+          method: 'POST',
+          body: JSON.stringify({ feedback: 'false_alarm' })
+        });
+        alert('Feedback submitted to Detectif.ai successfully!');
+      } catch (e) {
+        alert('Feedback failed: ' + e.message);
+      }
+    }
+
+    // Initialize
+    const saved = localStorage.getItem('ryouu_kyc_key');
+    if (saved) document.getElementById('apiKeyInput').value = saved;
+    loadSessions();
+    setInterval(loadSessions, 6000);
+  </script>
+</body>
+</html>

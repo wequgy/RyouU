@@ -1,12 +1,14 @@
-# Unclone KYC Verification Service (Backend)
+# RyouU KYC Verification Service
 
-A production-quality multi-tenant identity verification API: a customer's backend creates a session, their user completes a verification flow (hosted page at `/flow`), and a signed webhook delivers the result. Checks are pluggable modules.
+A **layered, server-enforced, human-in-the-loop** identity verification system: a customer's backend creates a session, their user completes a verification flow (hosted page at `/flow`), and a signed webhook delivers the recommendation. Checks are modular anti-fraud layers.
+
+The system only **RECOMMENDS** (`approved`, `needs_review`, `rejected_recommended`). High-risk and borderline cases are routed to compliance officers for final review. No check is treated as unbreakable; multiple distinct signals are layered together.
 
 ```
 customer backend --POST /v1/verifications--> API --> flow_url --> end user (hosted page /flow in WebView)
 end user --/flow/* (uploads, OTP, signals, challenges, submit)--> API --> background pipeline
 pipeline: run checks in parallel -> decision engine (per-tenant policy) -> save -> signed webhook
-customer: GET /v1/verifications/{id}, human review via POST .../review, evidence via GET .../evidence
+customer: GET /v1/verifications/{id}, human review via POST .../review, evidence via GET .../evidence, dashboard at /dashboard
 ```
 
 ## Quickstart

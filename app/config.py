@@ -58,6 +58,7 @@ class Settings:
     min_face_present_ratio: float
     max_upload_mb: int
     focus_loss_review_count: int
+    enforce_gates: bool
 
 
 def get_settings() -> Settings:
@@ -96,10 +97,11 @@ def get_settings() -> Settings:
         fast2sms_api_key=os.environ.get("FAST2SMS_API_KEY", ""),
         webhook_max_attempts=int(_num("WEBHOOK_MAX_ATTEMPTS", 3)),
         webhook_backoff_s=_num("WEBHOOK_BACKOFF_S", 1.0),
-        challenge_ttl_s=int(_num("CHALLENGE_TTL_S", 120)),
+        challenge_ttl_s=int(_num("CHALLENGE_TTL_S", 60)),
         head_turn_min_yaw_deg=_num("HEAD_TURN_MIN_YAW_DEG", 25),
         hand_wave_min_occlusion=_num("HAND_WAVE_MIN_OCCLUSION", 0.15),
         min_face_present_ratio=_num("MIN_FACE_PRESENT_RATIO", 0.8),
         max_upload_mb=int(_num("MAX_UPLOAD_MB", 20)),
         focus_loss_review_count=int(_num("FOCUS_LOSS_REVIEW_COUNT", 3)),
+        enforce_gates=_flag("KYC_ENFORCE_GATES", True),
     )

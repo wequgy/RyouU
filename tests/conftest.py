@@ -15,6 +15,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("DEMO_WEBHOOK_URL", "http://client.test/webhooks/kyc")
     monkeypatch.setenv("DEMO_WEBHOOK_SECRET", "whsec_test")
     monkeypatch.setenv("DETECTIF_API_KEY", "test-key")
+    monkeypatch.setenv("KYC_ENFORCE_GATES", "0")
     monkeypatch.delenv("SMTP_HOST", raising=False)
     monkeypatch.delenv("SMTP_USER", raising=False)
     monkeypatch.delenv("SMTP_PASS", raising=False)

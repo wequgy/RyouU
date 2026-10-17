@@ -10,19 +10,19 @@ max_uncertain_required: how many OTHER required checks may be uncertain/skipped 
 POLICIES = {
     "lenient": {
         "name": "lenient",
-        "required": ["face_match", "email_otp"],
-        "optional": ["voice_ai", "spoken_details", "liveness", "source_checks", "phone_otp", "video_deepfake"],
-        "reject_on_fail": ["face_match"],
-        "must_pass": ["face_match"],          # never approve on 'uncertain'/'skipped' for these
+        "required": ["id_details", "face_match", "email_otp"],
+        "optional": ["voice_ai", "spoken_details", "liveness", "source_checks", "phone_otp", "video_deepfake", "scene_integrity", "lip_sync"],
+        "reject_on_fail": ["id_details", "face_match"],
+        "must_pass": ["id_details", "face_match"],          # never approve on 'uncertain'/'skipped' for these
         "max_uncertain_required": 1,
     },
     "strict": {
         "name": "strict",
-        "required": ["face_match", "email_otp", "voice_ai", "spoken_details",
+        "required": ["id_details", "face_match", "email_otp", "voice_ai", "spoken_details",
                      "liveness", "source_checks"],
-        "optional": ["phone_otp", "video_deepfake"],
-        "reject_on_fail": ["face_match", "voice_ai", "source_checks"],
-        "must_pass": ["face_match", "email_otp", "voice_ai", "spoken_details",
+        "optional": ["phone_otp", "video_deepfake", "scene_integrity", "lip_sync"],
+        "reject_on_fail": ["id_details", "face_match", "voice_ai", "source_checks", "scene_integrity"],
+        "must_pass": ["id_details", "face_match", "email_otp", "voice_ai", "spoken_details",
                       "liveness", "source_checks"],
         "max_uncertain_required": 0,
     },
@@ -30,6 +30,7 @@ POLICIES = {
 
 # Which flow-page steps each check needs (the page builds its screens from this)
 CHECK_STEPS = {
+    "id_details": ["upload_id_image"],
     "face_match": ["upload_id_image", "upload_selfie"],
     "email_otp": ["email_otp"],
     "phone_otp": ["phone_otp"],
@@ -37,7 +38,9 @@ CHECK_STEPS = {
     "spoken_details": ["record_spoken_answers"],
     "liveness": ["liveness_challenges"],
     "source_checks": ["client_signals"],
-    "video_deepfake": [],
+    "scene_integrity": ["record_challenge_video"],
+    "lip_sync": ["record_challenge_video"],
+    "video_deepfake": ["record_challenge_video"],
 }
 
 

@@ -49,15 +49,12 @@ def classify(sim: float, pass_sim: float, fail_sim: float):
     return "uncertain", score, 0.3
 
 
-@register("face_match")
-def face_match(ctx: CheckContext) -> CheckResult:
-    s = ctx.settings
-    id_path, selfie = ctx.files.get("id_image"), ctx.files.get("selfie")
-    if not id_path or not selfie:
+def verify_face_match(id_path, selfie_path, s) -> CheckResult:
+    if not id_path or not selfie_path:
         return CheckResult.skipped("face_match", "ID image or selfie not provided")
     try:
         e_id, m_id = EMBEDDER(id_path)
-        e_self, m_self = EMBEDDER(selfie)
+        e_self, m_self = EMBEDDER(selfie_path)
     except ImportError:
         return CheckResult.uncertain("face_match", "Face model not installed (pip install -r requirements-ml.txt)")
     if e_id is None:
@@ -75,3 +72,8 @@ def face_match(ctx: CheckContext) -> CheckResult:
               "uncertain": f"Borderline face similarity {sim:.2f}"}[status]
     return CheckResult(name="face_match", status=status, score=score, confidence=conf, reason=reason,
                        details={"similarity": round(sim, 4), "id": m_id, "selfie": m_self})
+
+
+@register("face_match")
+def face_match(ctx: CheckContext) -> CheckResult:
+    return verify_face_match(ctx.files.get("id_image"), ctx.files.get("selfie"), ctx.settings)

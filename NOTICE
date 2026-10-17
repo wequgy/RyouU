@@ -1,0 +1,23 @@
+RyouU KYC Verification Service
+Copyright (c) 2026 RyouU
+
+This product includes software and pretrained neural weights developed by third parties:
+
+1. InsightFace (buffalo_l):
+   - Developed by DeepInsight (https://github.com/deepinsight/insightface)
+   - Pretrained model weights (buffalo_l) are licensed exclusively for non-commercial
+     academic research and demonstration evaluation purposes.
+   - Any commercial production deployment must replace these weights with commercially
+     licensed models or custom-trained weights.
+
+2. RapidOCR:
+   - RapidAI (https://github.com/RapidAI/RapidOCR)
+   - Licensed under the Apache License, Version 2.0.
+
+3. faster-whisper:
+   - Systran (https://github.com/SYSTRAN/faster-whisper)
+   - Licensed under the MIT License.
+
+4. ViT Deepfake Classifier:
+   - PrithivMLmods (prithivMLmods/Deep-Fake-Detector-v2-Model)
+   - Licensed under the Apache License, Version 2.0.

@@ -35,9 +35,17 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
   created_at REAL, PRIMARY KEY (tenant_id, idempotency_key));
 CREATE TABLE IF NOT EXISTS rate_limits (
   key TEXT PRIMARY KEY, count INTEGER, window_start REAL);
+CREATE TABLE IF NOT EXISTS media_hashes (
+  tenant_id TEXT, file_hash TEXT, media_kind TEXT, vid TEXT, created_at REAL,
+  PRIMARY KEY (tenant_id, file_hash));
+CREATE TABLE IF NOT EXISTS face_embeddings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT, reference_id TEXT, vid TEXT,
+  embedding_json TEXT, face_hash TEXT, created_at REAL);
 CREATE INDEX IF NOT EXISTS idx_ver_tenant ON verifications(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_otp ON otps(vid, channel);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON pipeline_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_media_hashes ON media_hashes(tenant_id, file_hash);
+CREATE INDEX IF NOT EXISTS idx_face_emb ON face_embeddings(tenant_id, reference_id);
 """
 
 PG_SCHEMA = """
@@ -63,9 +71,17 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
   created_at DOUBLE PRECISION, PRIMARY KEY (tenant_id, idempotency_key));
 CREATE TABLE IF NOT EXISTS rate_limits (
   key TEXT PRIMARY KEY, count INTEGER, window_start DOUBLE PRECISION);
+CREATE TABLE IF NOT EXISTS media_hashes (
+  tenant_id TEXT, file_hash TEXT, media_kind TEXT, vid TEXT, created_at DOUBLE PRECISION,
+  PRIMARY KEY (tenant_id, file_hash));
+CREATE TABLE IF NOT EXISTS face_embeddings (
+  id SERIAL PRIMARY KEY, tenant_id TEXT, reference_id TEXT, vid TEXT,
+  embedding_json TEXT, face_hash TEXT, created_at DOUBLE PRECISION);
 CREATE INDEX IF NOT EXISTS idx_ver_tenant ON verifications(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_otp ON otps(vid, channel);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON pipeline_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_media_hashes ON media_hashes(tenant_id, file_hash);
+CREATE INDEX IF NOT EXISTS idx_face_emb ON face_embeddings(tenant_id, reference_id);
 """
 
 _pg_pool = None
@@ -455,4 +471,78 @@ def delete_verification(vid: str) -> None:
         c.execute("DELETE FROM otps WHERE vid=?", (vid,))
         c.execute("DELETE FROM pipeline_jobs WHERE vid=?", (vid,))
         c.execute("DELETE FROM webhook_deliveries WHERE vid=?", (vid,))
+        c.execute("DELETE FROM media_hashes WHERE vid=?", (vid,))
+        c.execute("DELETE FROM face_embeddings WHERE vid=?", (vid,))
         c.execute("DELETE FROM verifications WHERE id=?", (vid,))
+
+
+# ---------------- Media Replay / Reuse Protection ----------------
+def record_media_hash(tenant_id: str, file_hash: str, media_kind: str, vid: str) -> bool:
+    """Store sha256 of media per tenant. Returns True if stored, False if already exists."""
+    now = time.time()
+    with conn() as c:
+        try:
+            c.execute("INSERT INTO media_hashes (tenant_id, file_hash, media_kind, vid, created_at) VALUES (?, ?, ?, ?, ?)",
+                      (tenant_id, file_hash, media_kind, vid, now))
+            return True
+        except Exception:
+            return False
+
+
+def get_media_hash(tenant_id: str, file_hash: str) -> Optional[dict]:
+    with conn() as c:
+        return _row(c.execute("SELECT * FROM media_hashes WHERE tenant_id=? AND file_hash=?",
+                              (tenant_id, file_hash)).fetchone())
+
+
+# ---------------- Cross-Session Fraud (Face Embeddings) ----------------
+def record_face_embedding(tenant_id: str, reference_id: str, vid: str, embedding: list, face_hash: str = "") -> None:
+    now = time.time()
+    emb_json = json.dumps([round(float(x), 5) for x in embedding])
+    with conn() as c:
+        c.execute("INSERT INTO face_embeddings (tenant_id, reference_id, vid, embedding_json, face_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                  (tenant_id, reference_id, vid, emb_json, face_hash, now))
+
+
+def find_cross_session_face(tenant_id: str, reference_id: str, embedding: list, threshold: float = 0.85) -> Optional[dict]:
+    """Check if the same face embedding appears under a different reference_id in this tenant."""
+    if not embedding:
+        return None
+    import numpy as np
+    emb_a = np.array(embedding, dtype=np.float32)
+    norm_a = np.linalg.norm(emb_a)
+    if norm_a == 0:
+        return None
+    emb_a = emb_a / norm_a
+
+    with conn() as c:
+        rows = c.execute("SELECT * FROM face_embeddings WHERE tenant_id=? AND reference_id != ?",
+                         (tenant_id, reference_id)).fetchall()
+        for r in rows:
+            d = _row(r)
+            if not d or not d.get("embedding_json"):
+                continue
+            try:
+                cand = np.array(json.loads(d["embedding_json"]), dtype=np.float32)
+                norm_c = np.linalg.norm(cand)
+                if norm_c > 0:
+                    cand = cand / norm_c
+                    sim = float(np.dot(emb_a, cand))
+                    if sim >= threshold:
+                        d["similarity"] = sim
+                        return d
+            except Exception:
+                continue
+    return None
+
+
+def get_active_verification_by_ref(tenant_id: str, reference_id: str) -> Optional[dict]:
+    """Get active (unexpired, not completed) verification for tenant and reference_id."""
+    now = time.time()
+    with conn() as c:
+        rows = c.execute("SELECT * FROM verifications WHERE tenant_id=? AND reference_id=? AND status NOT IN ('completed', 'failed', 'expired') AND expires_at > ? ORDER BY created_at DESC LIMIT 1",
+                         (tenant_id, reference_id, now)).fetchall()
+        if rows:
+            return _parse_ver(_row(rows[0]))
+    return None
+

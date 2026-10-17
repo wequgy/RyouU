@@ -17,10 +17,7 @@ def transcribe(path, prompt=None) -> str:
     if _WHISPER is None:
         from faster_whisper import WhisperModel
         from ..config import get_settings
-        try:
-            _WHISPER = WhisperModel(get_settings().whisper_model, device="auto", compute_type="int8")
-        except Exception:
-            _WHISPER = WhisperModel(get_settings().whisper_model, device="cpu", compute_type="int8")
+        _WHISPER = WhisperModel(get_settings().whisper_model, device="cpu", compute_type="int8")
     try:
         segments, _ = _WHISPER.transcribe(str(path), language="en", initial_prompt=prompt, vad_filter=True)
     except Exception as e:
@@ -47,13 +44,6 @@ def _answer(ctx: CheckContext, key: str, expected_name):
     path = ctx.files.get(f"spoken_{key}")
     if path:
         return TRANSCRIBER(path, expected_name if key == "name" else None)
-    shared = ctx.files.get("challenge_audio") or ctx.files.get("phrase_audio")
-    if shared:
-        shared_t = ctx.data.setdefault("_cached_transcripts", {}).get("shared")
-        if not shared_t:
-            shared_t = TRANSCRIBER(shared, expected_name)
-            ctx.data["_cached_transcripts"]["shared"] = shared_t
-        return shared_t
     return None
 
 

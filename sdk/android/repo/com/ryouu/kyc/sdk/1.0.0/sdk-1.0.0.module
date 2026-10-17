@@ -35,11 +35,11 @@
         {
           "name": "sdk-1.0.0.aar",
           "url": "sdk-1.0.0.aar",
-          "size": 54760,
-          "sha512": "658a5da353052510fb4abd35be4966f0e6a767d4b2a7a5ada2b4106083c435899e46fda599b819ab673d665b46cb0ba6a44b67e3755dc10bd1c6a76c095efaff",
-          "sha256": "df041da1e8229d95d8b73f1672abd7ebbaab585ff240e946a1cc0be35395ed1b",
-          "sha1": "1355eb22140c864432f2f75c339f390f75ce1ffa",
-          "md5": "eb6891d94203bfeadaecaad0b003b462"
+          "size": 58157,
+          "sha512": "17bd747983c72f7849f14bfae177c20f166911669d63aaca485682083a6ed4bccf49184e78ee49861beaadc74e29ba100257601a4e5edcd8ce135e7d7127c092",
+          "sha256": "e90bf86d056277535d35dcf5251f325c1d274256ea08480ffcf2716f3ebfb89d",
+          "sha1": "0c40823da04facb84728a33c174a6957d0b30572",
+          "md5": "23f221b4a3656b77bdeaa5a05b7b12ba"
         }
       ]
     },
@@ -121,11 +121,11 @@
         {
           "name": "sdk-1.0.0.aar",
           "url": "sdk-1.0.0.aar",
-          "size": 54760,
-          "sha512": "658a5da353052510fb4abd35be4966f0e6a767d4b2a7a5ada2b4106083c435899e46fda599b819ab673d665b46cb0ba6a44b67e3755dc10bd1c6a76c095efaff",
-          "sha256": "df041da1e8229d95d8b73f1672abd7ebbaab585ff240e946a1cc0be35395ed1b",
-          "sha1": "1355eb22140c864432f2f75c339f390f75ce1ffa",
-          "md5": "eb6891d94203bfeadaecaad0b003b462"
+          "size": 58157,
+          "sha512": "17bd747983c72f7849f14bfae177c20f166911669d63aaca485682083a6ed4bccf49184e78ee49861beaadc74e29ba100257601a4e5edcd8ce135e7d7127c092",
+          "sha256": "e90bf86d056277535d35dcf5251f325c1d274256ea08480ffcf2716f3ebfb89d",
+          "sha1": "0c40823da04facb84728a33c174a6957d0b30572",
+          "md5": "23f221b4a3656b77bdeaa5a05b7b12ba"
         }
       ]
     }

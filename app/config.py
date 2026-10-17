@@ -84,7 +84,7 @@ def get_settings() -> Settings:
         face_pass_sim=_num("FACE_PASS_SIM", 0.40),
         face_fail_sim=_num("FACE_FAIL_SIM", 0.25),
         min_face_px=int(_num("MIN_FACE_PX", 60)),
-        whisper_model=os.environ.get("WHISPER_MODEL", "small"),
+        whisper_model=os.environ.get("WHISPER_MODEL", "base.en"),
         name_match_ratio=int(_num("NAME_MATCH_RATIO", 80)),
         smtp_host=os.environ.get("SMTP_HOST", ""),
         smtp_port=int(_num("SMTP_PORT", 587)),

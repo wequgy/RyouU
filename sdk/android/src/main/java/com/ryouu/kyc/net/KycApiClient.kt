@@ -68,8 +68,15 @@ class KycApiClient(
             null
         }
 
-        val resolvedBaseUrl = if (hostFromBackend != null && (baseFlowUrl.contains("localhost") || baseFlowUrl.contains("127.0.0.1"))) {
-            baseFlowUrl.replace("localhost", hostFromBackend).replace("127.0.0.1", hostFromBackend)
+        val resolvedBaseUrl = if (hostFromBackend != null && (
+            baseFlowUrl.contains("localhost") ||
+            baseFlowUrl.contains("127.0.0.1") ||
+            baseFlowUrl.contains("10.0.2.2")
+        )) {
+            baseFlowUrl
+                .replace("10.0.2.2", hostFromBackend)
+                .replace("localhost", hostFromBackend)
+                .replace("127.0.0.1", hostFromBackend)
         } else {
             baseFlowUrl
         }

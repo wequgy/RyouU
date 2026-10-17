@@ -25,10 +25,9 @@ def issue(vid: str) -> list:
     now = time.time()
     code = "".join(str(secrets.randbelow(10)) for _ in range(4))
     words = secrets.SystemRandom().sample(COMMON_WORDS, 2)
-    side = secrets.choice(["left", "right"])
     issued = [
-        {"id": "ch_" + uuid.uuid4().hex[:10], "type": "head_turn", "issued_at": now,
-         "prompt": f"Slowly turn your head to the {side}, then back to the camera."},
+        {"id": "ch_" + uuid.uuid4().hex[:10], "type": "eye_blink", "issued_at": now,
+         "prompt": "Blink your eyes naturally 2 to 3 times while looking at the camera."},
         {"id": "ch_" + uuid.uuid4().hex[:10], "type": "phrase", "issued_at": now,
          "expected_code": code, "expected_digits": code, "expected_words": words,
          "prompt": f"Repeat twice: {words[0]} {words[1]} {' '.join(code)}"},

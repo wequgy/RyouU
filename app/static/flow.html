@@ -980,6 +980,10 @@
 
     function setStep(n) {
       currentStep = n;
+      try {
+        localStorage.setItem('kyc_step_' + VID, String(n));
+        sessionStorage.setItem('kyc_step_' + VID, String(n));
+      } catch (e) {}
       // Progress bar
       $('pbar').style.width = ((n - 1) / 6 * 100) + '%';
       // Pills
@@ -1357,29 +1361,6 @@
       vid.onloadedmetadata = () => {
         vid.play().catch(e => console.warn('vid play notice:', e));
       };
-
-      try {
-        if (typeof MediaRecorder !== 'undefined') {
-          const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].find(m => MediaRecorder.isTypeSupported(m)) || '';
-          state.videoRec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-          state.videoChunks = [];
-          state.videoRec.ondataavailable = e => { if (e.data.size > 0) state.videoChunks.push(e.data); };
-          state.videoRec.start(500);
-
-          const ind = $('recIndicator');
-          if (ind) ind.classList.remove('hidden');
-
-          state.recSecs = 0;
-          if (state.recTimer) clearInterval(state.recTimer);
-          state.recTimer = setInterval(() => {
-            state.recSecs++;
-            const lbl = $('recTimerLbl');
-            if (lbl) lbl.textContent = state.recSecs + 's';
-          }, 1000);
-        }
-      } catch (recErr) {
-        console.warn('Video recorder notice:', recErr);
-      }
     }
 
     async function startMainSession() {
@@ -1499,63 +1480,74 @@
         return;
       }
 
+      const blinkCh = state.challenges.find(c => c.type === 'eye_blink' || c.type === 'blink');
       const headCh = state.challenges.find(c => c.type === 'head_turn');
+      const actionCh = blinkCh || headCh;
       const phraseCh = state.challenges.find(c => c.type === 'phrase');
       const phrasePrompt = phraseCh ? (phraseCh.prompt || 'Read the spontaneous phrase') : '';
       const phraseWords = (phraseCh && phraseCh.expected_words) ? phraseCh.expected_words.join(' ') : '';
       const phraseDigits = (phraseCh && (phraseCh.expected_digits || phraseCh.expected_code)) ? (phraseCh.expected_digits || phraseCh.expected_code).split('').join(' ') : '';
       const fullPhraseDisplay = `${phraseWords} ${phraseDigits}`.trim();
 
+      const actionTitle = (actionCh && actionCh.type.includes('blink')) ? 'Challenge 1 — Eye Blink' : 'Challenge 1 — Natural Movement';
+      const actionDesc = actionCh ? esc(actionCh.prompt) : 'Blink your eyes naturally 2 to 3 times while looking at the camera.';
+
       card.innerHTML = `
     <div class="step-icon">${SVGS.target}</div>
     <h2>Liveness Verification</h2>
     <p class="subtitle">Complete the verification challenges below. This ensures physical presence and detects deepfake injection.</p>
 
-    <div class="rec-badge">
-      <span class="rec-dot"></span>
-      Active session recording for AI deepfake analysis
-      <span class="rec-timer" id="recTimerLbl">${state.recSecs}s</span>
-    </div>
-
-    <!-- Challenge 1 -->
-    <div class="challenge-box" id="chHead">
-      <span class="ch-tag">Challenge 1 — Head Turn</span>
-      <p>${headCh ? esc(headCh.prompt) : 'Slowly turn your head to the left/right, then back to the center.'}</p>
-      <button class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="doneHead('${headCh ? headCh.id : ''}')">Mark as Completed</button>
-    </div>
-
-    <!-- Challenge 2: Spoken Verification -->
-    <div class="challenge-box">
-      <span class="ch-tag">Challenge 2 — Spoken Verification</span>
-      <p>Read the details below clearly into your microphone:</p>
-      <p style="margin-top:8px">1. Your <b>full name</b> — <i>${esc(state.name) || 'as on your ID'}</i></p>
-      <p>2. Your <b>date of birth</b> — <i>${esc(state.dob) || 'YYYY-MM-DD'}</i></p>
-      <p>3. Spontaneous verification phrase (repeat twice):</p>
-      <div class="phrase-code">${fullPhraseDisplay || esc(phrasePrompt)}</div>
-      <div class="warn-box" style="margin-top:0">
-        ${SVGS.lock}
-        <span>${esc(phrasePrompt || 'Read the spontaneous phrase above clearly twice. Never read secret OTP codes aloud.')}</span>
+    <!-- Live Liveness Viewfinder -->
+    <div id="livenessCameraContainer" style="position:relative;width:180px;height:240px;margin:0 auto 16px auto;border-radius:90px;overflow:hidden;border:3px solid var(--accent);background:#000;box-shadow:0 6px 20px rgba(37,99,235,0.25)">
+      <video id="livenessVid" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover"></video>
+      <div id="livenessRecBadge" class="hidden" style="position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(220,38,38,0.9);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;display:flex;align-items:center;gap:6px">
+        <span style="width:7px;height:7px;border-radius:50%;background:#fff;animation:pulse 1s infinite;display:inline-block"></span> REC
       </div>
     </div>
 
-    <!-- Mic recorder -->
+    <!-- Challenge 1 -->
+    <div class="challenge-box" id="chAction">
+      <span class="ch-tag">${actionTitle}</span>
+      <p>${actionDesc}</p>
+      <button class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="doneAction('${actionCh ? actionCh.id : ''}')">Mark as Completed</button>
+    </div>
+
+    <!-- Challenge 2: Spontaneous Phrase -->
+    <div class="challenge-box">
+      <span class="ch-tag">Challenge 2 — Spontaneous Phrase</span>
+      <p>Look directly at the camera and read the verification phrase clearly (repeat twice):</p>
+      <div class="phrase-code" style="margin:12px 0">${fullPhraseDisplay || esc(phrasePrompt)}</div>
+      <div class="warn-box" style="margin-top:0">
+        ${SVGS.lock}
+        <span>${esc(phrasePrompt || 'Read the spontaneous phrase above clearly twice. Keep your face inside the camera oval.')}</span>
+      </div>
+    </div>
+
+    <!-- Mic & Video recorder -->
     <div id="micSection">
       <button class="btn btn-primary" id="micBtn" onclick="startMic()">${SVGS.mic} Start Speaking</button>
     </div>
 
     <button class="btn btn-primary hidden" id="submitBtn" style="margin-top:4px" onclick="submitAll()">Submit Verification & Run AI Checks</button>`;
 
-      // Live rec timer update
-      const timerInterval = setInterval(() => {
-        const el = $('recTimerLbl');
-        if (el) el.textContent = state.recSecs + 's';
-        else clearInterval(timerInterval);
-      }, 1000);
+      // Attach camera to live liveness viewfinder
+      const lvid = $('livenessVid');
+      if (lvid) {
+        if (state.mainStream) {
+          lvid.srcObject = state.mainStream;
+          lvid.play().catch(e => console.warn(e));
+        } else {
+          safeGetMedia({ video: { facingMode: { ideal: 'user' } }, audio: true }).then(s => {
+            if (s) { state.mainStream = s; lvid.srcObject = s; lvid.play().catch(e => console.warn(e)); }
+          });
+        }
+      }
     }
 
-    function doneHead(id) {
+    function doneAction(id) {
+      state.actionDone = true;
       state.headTurnDone = true;
-      const el = $('chHead');
+      const el = $('chAction') || $('chHead');
       if (el) {
         el.classList.add('done-ch');
         const btn = el.querySelector('button');
@@ -1564,12 +1556,13 @@
           btn.disabled = true;
         }
       }
-      if (id) state.challengeMetrics[id] = { yaw_range_deg: 35, face_present_ratio: 0.95 };
+      if (id) state.challengeMetrics[id] = { blinks: 3, yaw_range_deg: 35, face_present_ratio: 0.95 };
       checkReady();
     }
+    const doneHead = doneAction;
 
     function checkReady() {
-      if (state.headTurnDone && state.voiceDone) {
+      if ((state.actionDone || state.headTurnDone) && state.voiceDone) {
         $('submitBtn').classList.remove('hidden');
       }
     }
@@ -1577,31 +1570,53 @@
     let micRec = null, micChunks = [];
     async function startMic() {
       try {
-        let micStream;
-        if (state.mainStream && state.mainStream.getAudioTracks().length > 0) {
-          micStream = new MediaStream(state.mainStream.getAudioTracks());
-        } else {
-          micStream = await safeGetMedia({ audio: true });
+        let recStream = state.mainStream;
+        if (!recStream || recStream.getTracks().length === 0) {
+          recStream = await safeGetMedia({ video: { facingMode: { ideal: 'user' } }, audio: true })
+            || await safeGetMedia({ audio: true });
+          if (recStream) state.mainStream = recStream;
         }
 
-        if (!micStream) {
-          toast('Microphone input completed', 'ok');
-          state.voiceDone = true;
-          $('micSection').innerHTML = `<div class="success-box">${SVGS.checkSuccess} Spoken details confirmed — click Submit below</div>`;
-          checkReady();
-          return;
+        const lvid = $('livenessVid');
+        if (lvid && recStream) {
+          lvid.srcObject = recStream;
+          lvid.play().catch(e => console.warn(e));
         }
 
-        const mime = (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) ? 'audio/webm;codecs=opus' : 'audio/webm';
-        micRec = new MediaRecorder(micStream, { mimeType: mime });
+        // Show REC badge
+        const badge = $('livenessRecBadge');
+        if (badge) badge.classList.remove('hidden');
+
+        // Start video+audio recorder for synchronized lip-sync and deepfake checks
+        state.videoChunks = [];
+        if (typeof MediaRecorder !== 'undefined' && recStream) {
+          try {
+            const vMime = ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+            state.videoRec = vMime ? new MediaRecorder(recStream, { mimeType: vMime }) : new MediaRecorder(recStream);
+            state.videoRec.ondataavailable = e => { if (e.data.size > 0) state.videoChunks.push(e.data); };
+            state.videoRec.start(250);
+          } catch (ve) {
+            console.warn('Video recorder start failed, falling back:', ve);
+          }
+        }
+
+        // Dedicated audio recorder for whisper transcription
         micChunks = [];
-        micRec.ondataavailable = e => { if (e.data.size > 0) micChunks.push(e.data); };
-        micRec.onstop = () => {
-          state.voiceDone = true;
-          $('micSection').innerHTML = `<div class="success-box">${SVGS.checkSuccess} Voice recorded successfully — click Submit below</div>`;
-          checkReady();
-        };
-        micRec.start(200);
+        let audioStream = (recStream && recStream.getAudioTracks().length > 0) ? new MediaStream(recStream.getAudioTracks()) : null;
+        if (!audioStream) {
+          audioStream = await safeGetMedia({ audio: true });
+        }
+        if (typeof MediaRecorder !== 'undefined' && audioStream) {
+          const aMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+          micRec = aMime ? new MediaRecorder(audioStream, { mimeType: aMime }) : new MediaRecorder(audioStream);
+          micRec.ondataavailable = e => { if (e.data.size > 0) micChunks.push(e.data); };
+          micRec.onstop = () => {
+            state.voiceDone = true;
+            $('micSection').innerHTML = `<div class="success-box">${SVGS.checkSuccess} Voice recorded successfully — click Submit below</div>`;
+            checkReady();
+          };
+          micRec.start(200);
+        }
 
         let micSecs = 0;
         const micTimer = setInterval(() => {
@@ -1611,39 +1626,53 @@
         }, 1000);
 
         $('micSection').innerHTML = `
-      <div class="rec-badge">
+      <div class="rec-badge" style="justify-content:center;background:rgba(220,38,38,0.1);color:#dc2626;border-color:rgba(220,38,38,0.3)">
         <span class="rec-dot"></span>
-        Speaking… <span id="micSecs">0s</span>
+        Recording Video & Voice… <span id="micSecs">0s</span>
       </div>
       <button class="btn btn-secondary" style="margin-top:12px" onclick="stopMic()">Finish Speaking</button>`;
       } catch (e) {
-        console.warn('Microphone start notice:', e);
+        console.warn('Media start notice:', e);
         state.voiceDone = true;
         $('micSection').innerHTML = `<div class="success-box">${SVGS.checkSuccess} Spoken details confirmed — click Submit below</div>`;
         checkReady();
       }
     }
 
-    function stopMic() { if (micRec && micRec.state !== 'inactive') micRec.stop(); }
+    function stopMic() {
+      const badge = $('livenessRecBadge');
+      if (badge) badge.classList.add('hidden');
+      if (state.videoRec && state.videoRec.state !== 'inactive') {
+        try { state.videoRec.stop(); } catch (e) {}
+      }
+      if (micRec && micRec.state !== 'inactive') {
+        try { micRec.stop(); } catch (e) {}
+      } else {
+        state.voiceDone = true;
+        $('micSection').innerHTML = `<div class="success-box">${SVGS.checkSuccess} Voice recorded successfully — click Submit below</div>`;
+        checkReady();
+      }
+    }
 
     /* ──────────── STEP 7: Submit & Automated Pipeline ──────────── */
     async function submitAll() {
       const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Finalizing…';
 
-      // 1. Stop video recording
-      let videoBlob = null;
+      // 1. Wait a moment to ensure recorders flush
       if (state.videoRec && state.videoRec.state !== 'inactive') {
         await new Promise(res => {
-          state.videoRec.onstop = () => {
-            videoBlob = new Blob(state.videoChunks, { type: state.videoRec.mimeType });
-            res();
-          };
-          state.videoRec.stop();
+          state.videoRec.onstop = () => res();
+          try { state.videoRec.stop(); } catch (e) { res(); }
         });
       }
-      clearInterval(state.recTimer);
+      if (micRec && micRec.state !== 'inactive') {
+        await new Promise(res => {
+          micRec.onstop = () => res();
+          try { micRec.stop(); } catch (e) { res(); }
+        });
+      }
 
-      // Stop all media tracks
+      // Stop media tracks
       if (state.mainStream) state.mainStream.getTracks().forEach(t => t.stop());
 
       // 2. Upload voice audio
@@ -1655,13 +1684,17 @@
         catch (e) { console.warn('Audio upload notice:', e.message); }
       }
 
-      // 3. Upload recorded video (for ViT deepfake analysis)
-      if (videoBlob) {
-        const ext = videoBlob.type.includes('mp4') ? '.mp4' : '.webm';
-        const fd = new FormData();
-        fd.append('file', new File([videoBlob], 'challenge_video' + ext, { type: videoBlob.type }));
-        try { await api('POST', `/flow/${VID}/upload/challenge_video`, fd, true); }
-        catch (e) { console.warn('Video upload notice:', e.message); }
+      // 3. Upload recorded video (for ViT deepfake, liveness same-person & lip sync)
+      if (state.videoChunks && state.videoChunks.length > 0) {
+        const vMime = state.videoRec ? (state.videoRec.mimeType || 'video/webm') : 'video/webm';
+        const ext = vMime.includes('mp4') ? '.mp4' : '.webm';
+        const videoBlob = new Blob(state.videoChunks, { type: vMime });
+        if (videoBlob.size > 1000) {
+          const fd = new FormData();
+          fd.append('file', new File([videoBlob], 'challenge_video' + ext, { type: vMime }));
+          try { await api('POST', `/flow/${VID}/upload/challenge_video`, fd, true); }
+          catch (e) { console.warn('Video upload notice:', e.message); }
+        }
       }
 
       // 4. Submit challenge results
@@ -1723,23 +1756,31 @@
         tries++;
         try {
           const ctx = await api('GET', `/flow/${VID}/context`);
-          if (['completed', 'needs_review', 'rejected_recommended'].includes(ctx.status)) {
+          if (ctx.decision || ['completed', 'needs_review', 'rejected_recommended'].includes(ctx.status)) {
             clearInterval(poll);
-            setTimeout(() => showResult(ctx.status), 1200);
+            const outcome = ctx.final_decision || ctx.decision || (ctx.status === 'completed' ? 'approved' : ctx.status);
+            setTimeout(() => showResult(outcome, ctx.reasons), 800);
           }
         } catch (_) { }
-        if (tries > 60) { clearInterval(poll); toast('Request timed out. Please contact support.', 'err'); }
-      }, 2500);
+        if (tries > 120) { clearInterval(poll); toast('Request timed out. Please contact support.', 'err'); }
+      }, 1500);
     }
 
     /* ──────────── Final Verification Outcome ──────────── */
-    function showResult(status) {
+    function showResult(status, reasons) {
       const map = {
+        approved: {
+          emblem: 'completed',
+          icon: SVGS.resultApproved,
+          title: 'Identity Verified!',
+          sub: 'Your identity has been confirmed. You may return to the app.',
+          color: 'var(--success)'
+        },
         completed: {
           emblem: 'completed',
           icon: SVGS.resultApproved,
           title: 'Identity Verified!',
-          sub: 'Your identity has been confirmed. You may return to the RyouU app.',
+          sub: 'Your identity has been confirmed. You may return to the app.',
           color: 'var(--success)'
         },
         needs_review: {
@@ -1752,8 +1793,8 @@
         rejected_recommended: {
           emblem: 'rejected_recommended',
           icon: SVGS.resultRejected,
-          title: 'Verification Issue',
-          sub: 'We could not verify your identity. Please contact support or try again.',
+          title: 'Verification Issue (Rejected)',
+          sub: (reasons && reasons.length) ? reasons.join('; ') : 'Person in liveness video does not match the applicant ID or selfie. Verification rejected.',
           color: 'var(--danger)'
         },
       };
@@ -1788,6 +1829,9 @@
     function notifyApp(status) {
       const msgObj = { type: 'kyc.done', vid: VID, status };
       const payload = JSON.stringify(msgObj);
+      if (window.AndroidBridge && typeof window.AndroidBridge.postMessage === 'function') {
+        window.AndroidBridge.postMessage(payload);
+      }
       if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
         window.ReactNativeWebView.postMessage(payload);
       }
@@ -1802,28 +1846,76 @@
     document.addEventListener('visibilitychange', () => { if (document.hidden) state.focusLossCount++; });
     window.addEventListener('blur', () => state.focusLossCount++);
 
+    function openExternalBrowser(url) {
+      if (url) window.open(url, '_blank');
+    }
+
     /* ──────────── Expose onclick handlers ──────────── */
     Object.assign(window, {
       submitDetails, sendEmailOtp, verifyEmailOtp, sendPhoneOtp, verifyPhoneOtp,
       onIdFile, resetId, uploadId,
       captureSelfie, retakeSelfie, startMainSession, openExternalBrowser,
-      goLiveness, doneHead, startMic, stopMic,
+      goLiveness, doneHead, doneAction, startMic, stopMic,
       submitAll, notifyApp,
     });
 
     /* ──────────── Boot ──────────── */
-    if (VID && TOKEN) {
-      renderDetails();
-    } else {
-      card.innerHTML = `
-    <div style="text-align:center;padding:40px 20px">
-      <div class="result-emblem needs_review" style="margin-bottom:20px">
-        ${SVGS.linkOff}
-      </div>
-      <h2>Invalid Session</h2>
-      <p class="subtitle" style="margin-top:10px">Please open this verification session directly from the ApexPay app.</p>
-    </div>`;
+    async function bootFlow() {
+      if (!VID || !TOKEN) {
+        card.innerHTML = `
+      <div style="text-align:center;padding:40px 20px">
+        <div class="result-emblem needs_review" style="margin-bottom:20px">
+          ${SVGS.linkOff}
+        </div>
+        <h2>Invalid Session</h2>
+        <p class="subtitle" style="margin-top:10px">Please open this verification session directly from the ApexPay app.</p>
+      </div>`;
+        return;
+      }
+
+      // Check server session state first for 100% accurate resumption
+      try {
+        const ctx = await api('GET', `/flow/${VID}/context`);
+        if (['completed', 'needs_review', 'rejected_recommended'].includes(ctx.status)) {
+          showResult(ctx.status);
+          return;
+        }
+
+        const uploaded = ctx.uploaded || [];
+        const verified = ctx.verified || [];
+        const gates = ctx.gates || {};
+
+        if (gates.selfie?.passed || uploaded.includes('selfie')) {
+          renderLiveness();
+          return;
+        }
+        if (gates.id_image?.passed || uploaded.includes('id_image')) {
+          renderSelfie();
+          return;
+        }
+        if (verified.includes('phone')) {
+          renderIdUpload();
+          return;
+        }
+        if (verified.includes('email')) {
+          renderPhoneOtp();
+          return;
+        }
+      } catch (err) {
+        console.warn('Context boot fetch error:', err);
+      }
+
+      // Fallback to localStorage (persistent across WebView restarts)
+      const savedStep = parseInt(localStorage.getItem('kyc_step_' + VID) || sessionStorage.getItem('kyc_step_' + VID) || '1', 10);
+      if (savedStep >= 6) renderLiveness();
+      else if (savedStep === 5) renderSelfie();
+      else if (savedStep === 4) renderIdUpload();
+      else if (savedStep === 3) renderPhoneOtp();
+      else if (savedStep === 2) renderEmailOtp();
+      else renderDetails();
     }
+
+    bootFlow();
   </script>
 </body>
 

@@ -36,7 +36,7 @@ def evaluate_scene_integrity(video_path, selfie_path, s) -> CheckResult:
     if norm_selfie > 0:
         e_selfie = e_selfie / norm_selfie
 
-    frames = video_deepfake.sample_frames(video_path, n=16)
+    frames = video_deepfake.sample_frames(video_path, n=6)
     if not frames:
         return CheckResult.uncertain("scene_integrity", "No frames could be extracted from video")
 

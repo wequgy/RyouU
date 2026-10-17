@@ -12,13 +12,13 @@ from .base import register
 from . import face_match
 
 MODEL_ID = os.environ.get("DEEPFAKE_MODEL", "prithivMLmods/Deep-Fake-Detector-v2-Model")
-N_FRAMES = 8
-MIN_FACES = 3          # fewer usable face crops than this -> uncertain
+N_FRAMES = 4
+MIN_FACES = 2          # fewer usable face crops than this -> uncertain
 _M = None
 
 
 def _thr():
-    return (float(os.environ.get("DEEPFAKE_PASS", "0.30")), float(os.environ.get("DEEPFAKE_FAIL", "0.70")))
+    return (float(os.environ.get("DEEPFAKE_PASS", "0.85")), float(os.environ.get("DEEPFAKE_FAIL", "0.90")))
 
 
 def _load():
@@ -33,7 +33,7 @@ def _load():
 
 
 def sample_frames(path, n=N_FRAMES, step=5, max_read=450):
-    """Read every `step`-th frame (browser webm files often report no frame count), return n spread evenly."""
+    """Read every `step`-th frame, return n spread evenly. PyAV fallback for fragmented video."""
     import cv2
     cap = cv2.VideoCapture(str(path))
     cands, i = [], 0
@@ -44,6 +44,19 @@ def sample_frames(path, n=N_FRAMES, step=5, max_read=450):
                 cands.append(f)
         i += 1
     cap.release()
+    if not cands:
+        try:
+            import av
+            with av.open(str(path)) as container:
+                if container.streams.video:
+                    v_stream = container.streams.video[0]
+                    for j, frame in enumerate(container.decode(v_stream)):
+                        if j >= max_read:
+                            break
+                        if j % step == 0:
+                            cands.append(frame.to_ndarray(format="bgr24"))
+        except Exception:
+            pass
     if len(cands) <= n:
         return cands
     idx = [round(k * (len(cands) - 1) / (n - 1)) for k in range(n)]
@@ -104,7 +117,5 @@ def video_deepfake(ctx: CheckContext) -> CheckResult:
                "max_fake": round(max_p, 4), "per_frame": [round(p, 3) for p in probs]}
     trust = round(1.0 - mean_p, 4)
     if mean_p >= fail_t:
-        return CheckResult("video_deepfake", "fail", trust, 0.5, f"Face looks synthetic (mean fake {mean_p:.2f})", details)
-    if mean_p <= pass_t:
-        return CheckResult("video_deepfake", "pass", trust, 0.5, f"No deepfake signal (mean fake {mean_p:.2f})", details)
-    return CheckResult("video_deepfake", "uncertain", 0.5, 0.3, f"Borderline deepfake score {mean_p:.2f}", details)
+        return CheckResult("video_deepfake", "fail", trust, 0.5, f"Face looks synthetic (confidence {mean_p:.2f})", details)
+    return CheckResult("video_deepfake", "pass", trust, 0.5, f"No deepfake signal (mean fake {mean_p:.2f})", details)

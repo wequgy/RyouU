@@ -35,8 +35,15 @@ def run_one(name: str, ctx: CheckContext) -> CheckResult:
 
 
 def run_checks(ctx: CheckContext, names: list) -> list:
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        return list(pool.map(lambda n: run_one(n, ctx), names))
+    if not names:
+        return []
+    with ThreadPoolExecutor(max_workers=min(len(names), 4)) as ex:
+        futures = {ex.submit(run_one, n, ctx): n for n in names}
+        by_name = {}
+        for f in futures:
+            r = f.result()
+            by_name[r.name] = r
+        return [by_name[n] for n in names if n in by_name]
 
 
 def _trust(results: list):

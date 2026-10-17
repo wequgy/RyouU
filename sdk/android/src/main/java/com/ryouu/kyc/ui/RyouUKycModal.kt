@@ -68,6 +68,23 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.compose.runtime.saveable.rememberSaveable
+
+object KycPickerHolder {
+    var callback: ValueCallback<Array<Uri>>? = null
+    var photoUri: Uri? = null
+}
+
+object KycWebViewHolder {
+    var webView: WebView? = null
+    fun clear() {
+        try {
+            webView?.destroy()
+        } catch (_: Exception) {}
+        webView = null
+    }
+}
+
 class KycJsBridge(
     private val onMessageReceived: (String) -> Unit
 ) {
@@ -111,26 +128,28 @@ fun RyouUKycModal(
     val scope = rememberCoroutineScope()
     val apiClient = remember { KycApiClient() }
 
-    var verificationId by remember { mutableStateOf<String?>(null) }
-    var flowUrl by remember { mutableStateOf<String?>(null) }
-    var isLoadingSession by remember { mutableStateOf(true) }
-    var isPollingVerdict by remember { mutableStateOf(false) }
+    var verificationId by rememberSaveable { mutableStateOf<String?>(null) }
+    var flowUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var isLoadingSession by rememberSaveable { mutableStateOf(true) }
+    var isPollingVerdict by rememberSaveable { mutableStateOf(false) }
+    var currentPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
 
-    // File chooser support
+    // File chooser support with holder to survive background activity recreation
     var filePathCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
-    var currentPhotoUri by remember { mutableStateOf<Uri?>(null) }
 
     val takePictureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        val cb = filePathCallback
+        val cb = KycPickerHolder.callback ?: filePathCallback
+        val uri = KycPickerHolder.photoUri ?: currentPhotoUriString?.let { Uri.parse(it) }
         if (cb != null) {
-            if (success && currentPhotoUri != null) {
-                cb.onReceiveValue(arrayOf(currentPhotoUri!!))
+            if (success && uri != null) {
+                cb.onReceiveValue(arrayOf(uri))
             } else {
                 cb.onReceiveValue(null)
             }
+            KycPickerHolder.callback = null
             filePathCallback = null
         }
     }
@@ -138,13 +157,14 @@ fun RyouUKycModal(
     val getContentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        val cb = filePathCallback
+        val cb = KycPickerHolder.callback ?: filePathCallback
         if (cb != null) {
             if (uri != null) {
                 cb.onReceiveValue(arrayOf(uri))
             } else {
                 cb.onReceiveValue(null)
             }
+            KycPickerHolder.callback = null
             filePathCallback = null
         }
     }
@@ -164,8 +184,14 @@ fun RyouUKycModal(
         }
     }
 
-    // Trigger permission request and session creation
+    // Trigger permission request and session creation only if not already initialized
     LaunchedEffect(visible, config.backendUrl, params.referenceId) {
+        if (!visible) return@LaunchedEffect
+        if (flowUrl != null) {
+            isLoadingSession = false
+            return@LaunchedEffect
+        }
+
         permissionLauncher.launch(
             arrayOf(
                 Manifest.permission.CAMERA,
@@ -251,74 +277,88 @@ fun RyouUKycModal(
                 if (flowUrl != null && !isPollingVerdict) {
                     AndroidView(
                         factory = { ctx ->
-                            WebView(ctx).apply {
-                                layoutParams = ViewGroup.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
-                                )
+                            val existing = KycWebViewHolder.webView
+                            if (existing != null) {
+                                (existing.parent as? ViewGroup)?.removeView(existing)
+                                existing
+                            } else {
+                                WebView(ctx).apply {
+                                    layoutParams = ViewGroup.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
 
-                                settings.apply {
-                                    javaScriptEnabled = true
-                                    domStorageEnabled = true
-                                    allowFileAccess = true
-                                    allowContentAccess = true
-                                    mediaPlaybackRequiresUserGesture = false
-                                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                                    useWideViewPort = true
-                                    loadWithOverviewMode = true
-                                    setSupportZoom(false)
-                                }
-
-                                addJavascriptInterface(
-                                    KycJsBridge { json ->
-                                        try {
-                                            val obj = JSONObject(json)
-                                            val type = obj.optString("type", "")
-                                            val vid = obj.optString("vid", "")
-                                            if (type == "kyc.done" || type == "kyc_complete" || type == "kyc_submitted") {
-                                                post { handleKycDone(vid.ifBlank { null }) }
-                                            }
-                                        } catch (e: Exception) {
-                                            if (json.contains("kyc.done") || json.contains("completed")) {
-                                                post { handleKycDone(null) }
-                                            }
-                                        }
-                                    },
-                                    "AndroidBridge"
-                                )
-
-                                webViewClient = object : WebViewClient() {}
-
-                                webChromeClient = object : WebChromeClient() {
-                                    override fun onPermissionRequest(request: PermissionRequest) {
-                                        request.grant(request.resources)
+                                    settings.apply {
+                                        javaScriptEnabled = true
+                                        domStorageEnabled = true
+                                        allowFileAccess = true
+                                        allowContentAccess = true
+                                        mediaPlaybackRequiresUserGesture = false
+                                        mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                        useWideViewPort = true
+                                        loadWithOverviewMode = true
+                                        setSupportZoom(false)
                                     }
 
-                                    override fun onShowFileChooser(
-                                        webView: WebView?,
-                                        filePathCb: ValueCallback<Array<Uri>>?,
-                                        fileChooserParams: FileChooserParams?
-                                    ): Boolean {
-                                        filePathCallback?.onReceiveValue(null)
-                                        filePathCallback = filePathCb
-
-                                        val isCapture = fileChooserParams?.isCaptureEnabled == true
-                                        if (isCapture) {
-                                            val photoUri = createTempImageUri(ctx)
-                                            if (photoUri != null) {
-                                                currentPhotoUri = photoUri
-                                                takePictureLauncher.launch(photoUri)
-                                                return true
+                                    addJavascriptInterface(
+                                        KycJsBridge { json ->
+                                            try {
+                                                val obj = JSONObject(json)
+                                                val type = obj.optString("type", "")
+                                                val vid = obj.optString("vid", "")
+                                                if (type == "kyc.done" || type == "kyc_complete" || type == "kyc_submitted") {
+                                                    post { handleKycDone(vid.ifBlank { null }) }
+                                                }
+                                            } catch (e: Exception) {
+                                                if (json.contains("kyc.done") || json.contains("completed")) {
+                                                    post { handleKycDone(null) }
+                                                }
                                             }
+                                        },
+                                        "AndroidBridge"
+                                    )
+
+                                    webViewClient = object : WebViewClient() {}
+
+                                    webChromeClient = object : WebChromeClient() {
+                                        override fun onPermissionRequest(request: PermissionRequest) {
+                                            request.grant(request.resources)
                                         }
 
-                                        getContentLauncher.launch("image/*")
-                                        return true
-                                    }
-                                }
+                                        override fun onShowFileChooser(
+                                            webView: WebView?,
+                                            filePathCb: ValueCallback<Array<Uri>>?,
+                                            fileChooserParams: FileChooserParams?
+                                        ): Boolean {
+                                            KycPickerHolder.callback?.onReceiveValue(null)
+                                            KycPickerHolder.callback = filePathCb
+                                            filePathCallback = filePathCb
 
-                                webViewInstance = this
-                                loadUrl(flowUrl!!)
+                                            val isCapture = fileChooserParams?.isCaptureEnabled == true
+                                            if (isCapture) {
+                                                val photoUri = createTempImageUri(ctx)
+                                                if (photoUri != null) {
+                                                    KycPickerHolder.photoUri = photoUri
+                                                    currentPhotoUriString = photoUri.toString()
+                                                    takePictureLauncher.launch(photoUri)
+                                                    return true
+                                                }
+                                            }
+
+                                            getContentLauncher.launch("image/*")
+                                            return true
+                                        }
+                                    }
+
+                                    webViewInstance = this
+                                    KycWebViewHolder.webView = this
+                                    loadUrl(flowUrl!!)
+                                }
+                            }
+                        },
+                        update = { wv ->
+                            if (wv.url == null && flowUrl != null) {
+                                wv.loadUrl(flowUrl!!)
                             }
                         },
                         modifier = Modifier.fillMaxSize()

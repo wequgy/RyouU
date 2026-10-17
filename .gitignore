@@ -60,9 +60,22 @@ app/static/sample_*
 
 # Android Studio builds & APKs
 *.apk
+*.aab
 ApexPay_Android/
 sdk/android/.gradle/
 sdk/android/build/
 sdk/android/local.properties
+**/local.properties
+.gradle/
+*.hprof
+
+# Audio & Video recording temporary files
+*.webm
+*.m4a
+*.wav
+*.mp3
+*.tmp
+*.temp
+*.orig
 
 

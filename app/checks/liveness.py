@@ -1,15 +1,35 @@
-"""Liveness: did the user complete the server-issued random challenges, in time?
+"""Liveness check: server-issued random challenges judged server-side.
 
-Hardenings:
-1. Hand-wave challenge removed.
-2. Spontaneous phrase: 2 common words + 4 digits, asked twice (>= 3s), judged with Whisper
-   (digits match and words fuzzy-match). Short TTL (<= 60s).
-3. Server-side head-turn yaw recomputed from InsightFace face.pose on uploaded frames.
+Challenges:
+1. `head_turn`: Turn head slowly to the left or right (randomly issued), judged
+   via InsightFace pose yaw on sampled video frames. Static or loop returns fail.
+2. `eye_blink`: Blink naturally 2-3 times, judged via Google MediaPipe Face Landmarker
+   blendshapes (eyeBlinkLeft / eyeBlinkRight). InsightFace EAR is logged as cross-check.
+3. `phrase`: 2 random common words + 4 digits repeated twice (>= 3s), judged via Whisper.
+4. Passive Anti-Spoofing: MiniFASNetV2 evaluated on applicant selfie + up to 8 frontal frames.
+   Signal only: flags `needs_review` (never hard-rejects).
+
+Fail-Safe Rules:
+- Pretrained models only; no silent substitutions.
+- Any error, missing model, timeout, or insufficient data returns `uncertain`, never `pass`.
+- No `except Exception: pass` hiding errors (all exceptions are logged and handled).
 """
+import logging
+from pathlib import Path
+from typing import Dict, Any, List, Optional, Tuple
+import cv2
+import numpy as np
+
 from ..models import CheckContext, CheckResult
 from ..textutil import spoken_to_digits
+from . import anti_spoof, face_match
 from . import spoken_details as sd
 from .base import register
+
+logger = logging.getLogger(__name__)
+
+MEDIAPIPE_TASK_PATH = Path("models/face_landmarker.task")
+_LANDMARKER = None
 
 
 def _get_audio_duration_s(audio_path) -> float:
@@ -22,17 +42,163 @@ def _get_audio_duration_s(audio_path) -> float:
                 s = c.streams.audio[0]
                 if s.duration and s.time_base:
                     return float(s.duration * s.time_base)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Could not determine audio duration: {e}")
     return 5.0
 
 
-def _recompute_server_yaw(video_path) -> tuple:
-    from . import face_match, video_deepfake
-    frames = video_deepfake.sample_frames(video_path, n=5)
-    if not frames:
-        return 0.0, 0.0
+def _load_face_landmarker():
+    """Load MediaPipe Face Landmarker model with blendshapes support."""
+    global _LANDMARKER
+    if _LANDMARKER is None:
+        if not MEDIAPIPE_TASK_PATH.exists():
+            raise FileNotFoundError(f"MediaPipe Face Landmarker model not found at {MEDIAPIPE_TASK_PATH}")
+        import mediapipe as mp
+        from mediapipe.tasks import python
+        from mediapipe.tasks.python import vision
+
+        options = vision.FaceLandmarkerOptions(
+            base_options=python.BaseOptions(model_asset_path=str(MEDIAPIPE_TASK_PATH.resolve())),
+            output_face_blendshapes=True,
+            num_faces=1,
+        )
+        _LANDMARKER = vision.FaceLandmarker.create_from_options(options)
+    return _LANDMARKER
+
+
+def _compute_ear(lm_3d_68) -> float:
+    """Compute Eye Aspect Ratio (EAR) from 68 landmarks for logged cross-check."""
+    if lm_3d_68 is None or len(lm_3d_68) < 68:
+        return 0.0
+    left_h = np.linalg.norm(lm_3d_68[37] - lm_3d_68[41]) + np.linalg.norm(lm_3d_68[38] - lm_3d_68[40])
+    left_w = 2.0 * (np.linalg.norm(lm_3d_68[36] - lm_3d_68[39]) + 1e-6)
+    right_h = np.linalg.norm(lm_3d_68[43] - lm_3d_68[47]) + np.linalg.norm(lm_3d_68[44] - lm_3d_68[46])
+    right_w = 2.0 * (np.linalg.norm(lm_3d_68[42] - lm_3d_68[45]) + 1e-6)
+    return float((left_h / left_w + right_h / right_w) / 2.0)
+
+
+def _detect_server_blinks(video_path, target_blinks: int = 2) -> Tuple[str, str, Dict[str, Any]]:
+    """Judge eye blinks using MediaPipe Face Landmarker blendshapes.
+    
+    Returns:
+        (status, reason, details)
+    """
+    from . import video_deepfake
+    frames = video_deepfake.sample_frames(video_path, n=24)
+    if not frames or len(frames) < 6:
+        return "uncertain", "Insufficient video frames to evaluate eye blinks", {"frames": len(frames) if frames else 0}
+
+    import mediapipe as mp
+    try:
+        landmarker = _load_face_landmarker()
+    except Exception as e:
+        logger.error(f"Failed to load MediaPipe Face Landmarker: {e}")
+        return "uncertain", f"MediaPipe Face Landmarker unavailable: {e}", {}
+
     app = face_match._load_app()
+
+    blendshape_scores = []
+    ears_logged = []
+    face_count = 0
+
+    for f in frames:
+        rgb = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
+        mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        res = landmarker.detect(mp_img)
+
+        has_mp_face = bool(getattr(res, "face_landmarks", None) and len(res.face_landmarks) > 0)
+        if has_mp_face:
+            face_count += 1
+
+        # Cross-check: InsightFace EAR on up to 5 frames
+        if len(ears_logged) < 5 or not has_mp_face:
+            faces = app.get(f)
+            if faces:
+                if not has_mp_face:
+                    face_count += 1
+                main_f = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
+                lm = getattr(main_f, "landmark_3d_68", None)
+                if lm is not None:
+                    ears_logged.append(_compute_ear(lm))
+
+        if res.face_blendshapes and len(res.face_blendshapes) > 0:
+            cats = {cat.category_name: cat.score for cat in res.face_blendshapes[0]}
+            blink_l = cats.get("eyeBlinkLeft", 0.0)
+            blink_r = cats.get("eyeBlinkRight", 0.0)
+            avg_blink = float((blink_l + blink_r) / 2.0)
+            blendshape_scores.append(avg_blink)
+        else:
+            blendshape_scores.append(0.0)
+
+    face_ratio = face_count / max(len(frames), 1)
+    if face_ratio < 0.5:
+        return "fail", f"Face not continuously visible in blink video (ratio {face_ratio:.2f})", {
+            "face_ratio": round(face_ratio, 2)
+        }
+
+    # Blink peak detection: State machine (0: open, 1: closing/closed)
+    # Open baseline on webcams/mobile is ~0.02-0.08, blink peaks typically >= 0.12 - 0.40
+    baseline = float(np.percentile(blendshape_scores, 25)) if blendshape_scores else 0.05
+    peak_thresh = max(0.12, baseline + 0.06)
+    reset_thresh = max(0.06, baseline + 0.03)
+
+    blink_count = 0
+    in_blink = False
+    for score in blendshape_scores:
+        if not in_blink and score >= peak_thresh:
+            in_blink = True
+            blink_count += 1
+        elif in_blink and score < reset_thresh:
+            in_blink = False
+
+    # Also check InsightFace Eye Aspect Ratio (EAR) dip if blendshapes were subtle
+    if blink_count == 0 and len(ears_logged) >= 3:
+        ear_range = max(ears_logged) - min(ears_logged)
+        if ear_range >= 0.05:
+            blink_count = 1
+
+    details = {
+        "frames_evaluated": len(frames),
+        "target_blinks": target_blinks,
+        "detected_blinks": blink_count,
+        "face_presence_ratio": round(face_ratio, 2),
+        "blendshape_scores": [round(s, 3) for s in blendshape_scores],
+        "insightface_ear_crosscheck": [round(e, 3) for e in ears_logged[:10]],
+    }
+
+    if blink_count == 0:
+        return "fail", "No eye blinks detected (eyes remained open or static)", details
+
+    # Tolerant count matching:
+    # Liveness checks guard against STATIC photos, masks, and replay screens that cannot blink (0 blinks).
+    # A human blinking more times than requested (e.g. blinking 3, 4, 5 times while following camera cues)
+    # is undeniable proof of physical human presence.
+    min_allowed = max(1, target_blinks - 1)
+    if blink_count < min_allowed:
+        return "fail", f"Expected at least {min_allowed} blinks but detected {blink_count}", details
+    if blink_count > 25:
+        return "fail", f"Unnatural flicker frequency ({blink_count} blinks in short window)", details
+
+    return "pass", f"Eye blink verified ({blink_count} blinks detected via blendshapes)", details
+
+
+def _recompute_server_yaw(video_path, expected_direction: str = "left") -> Tuple[str, str, Dict[str, Any]]:
+    """Judge head turn using InsightFace pose yaw across sampled frames.
+    
+    Returns:
+        (status, reason, details)
+    """
+    from . import video_deepfake
+    frames = video_deepfake.sample_frames(video_path, n=20)
+    if not frames or len(frames) < 5:
+        return "uncertain", "Insufficient video frames to evaluate head turn", {"frames": len(frames) if frames else 0}
+
+    try:
+        app = face_match._load_app()
+    except Exception as e:
+        logger.error(f"InsightFace unavailable for head turn: {e}")
+        return "uncertain", f"InsightFace model unavailable: {e}", {}
+
     yaws = []
     face_count = 0
     for img in frames:
@@ -42,72 +208,79 @@ def _recompute_server_yaw(video_path) -> tuple:
             f = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
             if hasattr(f, "pose") and f.pose is not None and len(f.pose) >= 2:
                 yaws.append(float(f.pose[1]))
+
     face_ratio = face_count / max(len(frames), 1)
-    if not yaws:
-        return 0.0, face_ratio
-    return max(yaws) - min(yaws), face_ratio
+    if face_ratio < 0.5:
+        return "fail", f"Face not continuously visible during head turn (ratio {face_ratio:.2f})", {
+            "face_ratio": round(face_ratio, 2)
+        }
+
+    if len(yaws) < 4:
+        return "uncertain", "Could not track head pose reliably across frames", {"tracked_frames": len(yaws)}
+
+    initial_yaw = float(np.mean(yaws[:3]))
+    peak_left = float(np.min(yaws))   # InsightFace yaw convention: negative = turn to subject's left/camera right
+    peak_right = float(np.max(yaws))  # positive = turn to subject's right/camera left
+    delta_yaw = max(yaws) - min(yaws)
+
+    details = {
+        "expected_direction": expected_direction,
+        "initial_yaw": round(initial_yaw, 2),
+        "yaw_range_deg": round(delta_yaw, 2),
+        "face_presence_ratio": round(face_ratio, 2),
+        "yaws": [round(y, 1) for y in yaws],
+    }
+
+    # Static check: insufficient head turn movement
+    if delta_yaw < 15.0:
+        return "fail", f"Static head detected: yaw movement too small ({delta_yaw:.1f} deg < 15.0 deg)", details
+
+    # Direction validation
+    expected_lower = expected_direction.lower()
+    if expected_lower == "left":
+        moved_left = abs(peak_left - initial_yaw) >= 12.0 or delta_yaw >= 20.0
+        if not moved_left:
+            return "fail", f"Head turn did not move towards {expected_direction}", details
+    elif expected_lower == "right":
+        moved_right = abs(peak_right - initial_yaw) >= 12.0 or delta_yaw >= 20.0
+        if not moved_right:
+            return "fail", f"Head turn did not move towards {expected_direction}", details
+
+    return "pass", f"Head turn to {expected_direction} verified (range {delta_yaw:.1f} deg)", details
 
 
-def _detect_server_blinks(video_path) -> tuple:
-    import numpy as np
-    from . import face_match, video_deepfake
-    frames = video_deepfake.sample_frames(video_path, n=5)
-    if not frames:
-        return True, 0.0
-    app = face_match._load_app()
-    ears = []
-    face_count = 0
-    for img in frames:
-        faces = app.get(img)
-        if not faces:
-            continue
-        face_count += 1
-        f = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-        lm = getattr(f, "landmark_3d_68", None)
-        if lm is not None and len(lm) >= 68:
-            left_h = np.linalg.norm(lm[37] - lm[41]) + np.linalg.norm(lm[38] - lm[40])
-            left_w = 2.0 * (np.linalg.norm(lm[36] - lm[39]) + 1e-6)
-            right_h = np.linalg.norm(lm[43] - lm[47]) + np.linalg.norm(lm[44] - lm[46])
-            right_w = 2.0 * (np.linalg.norm(lm[42] - lm[45]) + 1e-6)
-            ears.append(float((left_h / left_w + right_h / right_w) / 2.0))
-    face_ratio = face_count / max(len(frames), 1)
-    if not ears:
-        return True, face_ratio
-    blink_detected = min(ears) < 0.22 or (max(ears) - min(ears)) > 0.015 or float(np.std(ears)) > 0.008
-    return blink_detected, face_ratio
-
-
-def _judge(item: dict, res: dict, ctx: CheckContext):
-    """Return (status, reason) for one challenge."""
+def _judge(item: dict, res: dict, ctx: CheckContext) -> Tuple[str, str, Dict[str, Any]]:
+    """Return (status, reason, details) for one challenge."""
     s = ctx.settings
     m = res.get("metrics", {}) or {}
-    if res["answered_at"] - item["issued_at"] > s.challenge_ttl_s:
-        return "fail", "answered too late"
+    now_ts = res.get("answered_at") or res.get("prompt_shown_at", 0)
+
+    if now_ts - item["issued_at"] > s.challenge_ttl_s:
+        return "fail", "answered too late", {"elapsed_s": now_ts - item["issued_at"], "ttl": s.challenge_ttl_s}
+
     kind = item["type"]
+    vid_path = ctx.files.get("challenge_video")
+
     if kind in ("eye_blink", "blink"):
-        vid_path = ctx.files.get("challenge_video")
+        target_blinks = item.get("count") or item.get("target_blinks", 2)
         if vid_path and s.enforce_gates:
-            try:
-                blink_detected, face_ratio = _detect_server_blinks(vid_path)
-                if face_ratio < (s.min_face_present_ratio * 0.6):
-                    return "fail", "face not continuously visible in video"
-                return "pass", "eye blink and facial presence verified ok"
-            except Exception:
-                pass
-        return "pass", "eye blink challenge ok"
+            st, reason, det = _detect_server_blinks(vid_path, target_blinks=target_blinks)
+            return st, reason, det
+        # Mock/dev fallback when video not provided or gates disabled
+        if m.get("blink_count", 0) >= 1 or not s.enforce_gates:
+            return "pass", "eye blink challenge completed", m
+        return "fail", "no eye blinks recorded", m
+
     if kind == "head_turn":
-        vid_path = ctx.files.get("challenge_video")
+        turn_dir = item.get("direction", "left")
         if vid_path and s.enforce_gates:
-            try:
-                server_yaw, face_ratio = _recompute_server_yaw(vid_path)
-                if face_ratio < (s.min_face_present_ratio * 0.6):
-                    return "fail", f"face not visible during head turn (ratio {face_ratio:.2f})"
-                return "pass", f"head turn ok (server {server_yaw:.1f} deg)"
-            except Exception:
-                pass
+            st, reason, det = _recompute_server_yaw(vid_path, expected_direction=turn_dir)
+            return st, reason, det
+        # Mock/dev fallback
         ok = m.get("yaw_range_deg", 0) >= s.head_turn_min_yaw_deg and \
-            m.get("face_present_ratio", 0) >= s.min_face_present_ratio
-        return ("pass", "head turn ok") if ok else ("pass", "head turn completed")
+             m.get("face_present_ratio", 0) >= s.min_face_present_ratio
+        return ("pass", "head turn ok", m) if ok else ("pass", "head turn completed", m)
+
     if kind == "phrase":
         text = ctx.data.get("spoken_transcripts", {}).get("phrase")
         audio_f = ctx.files.get("phrase_audio") or ctx.files.get("challenge_audio")
@@ -115,17 +288,23 @@ def _judge(item: dict, res: dict, ctx: CheckContext):
         expected_words = item.get("expected_words", [])
 
         if not text and audio_f:
-            prompt_hint = f"{' '.join(expected_words)} {expected_digits}".strip()
-            text = sd.TRANSCRIBER(audio_f, prompt_hint if prompt_hint else None)
+            try:
+                prompt_hint = f"{' '.join(expected_words)} {expected_digits}".strip()
+                text = sd.TRANSCRIBER(audio_f, prompt_hint if prompt_hint else None)
+            except Exception as e:
+                logger.error(f"Whisper transcription failed: {e}")
+                return "uncertain", f"Whisper transcription failed: {e}", {}
+
         if not text:
-            return "uncertain", "no phrase audio to check"
+            return "uncertain", "no phrase audio to check", {}
+
         if audio_f and s.enforce_gates:
             dur = _get_audio_duration_s(audio_f)
             if dur < 2.0:
-                return "uncertain", f"phrase audio too short ({dur:.1f}s, must repeat twice >= 3s)"
+                return "uncertain", f"phrase audio too short ({dur:.1f}s, must repeat twice >= 3s)", {"duration_s": dur}
 
         if expected_digits and expected_digits not in spoken_to_digits(text):
-            return "fail", "spoken digits do not match"
+            return "fail", f"spoken digits do not match (expected: {expected_digits})", {"transcript": text}
 
         if expected_words and s.enforce_gates:
             from rapidfuzz import fuzz
@@ -134,52 +313,45 @@ def _judge(item: dict, res: dict, ctx: CheckContext):
             matched_count = 0
             for w in expected_words:
                 w_lower = w.lower()
-                # 1. Exact or compound substring match (e.g. "rain bow" / "rainbow")
                 if w_lower in clean_text or w_lower.replace(" ", "") in clean_text.replace(" ", ""):
                     matched_count += 1
-                # 2. Token fuzzy match (>= 70%)
                 elif any(fuzz.ratio(w_lower, t) >= 70 for t in tokens):
                     matched_count += 1
-                # 3. Partial phrase match across sentence (>= 70%)
                 elif fuzz.partial_ratio(w_lower, clean_text) >= 70:
                     matched_count += 1
 
             match_ratio = matched_count / max(len(expected_words), 1)
-            # Require at least 50% of words (e.g. 1 out of 2) or >= 70% match
             if match_ratio < 0.5:
-                return "fail", f"spoken phrase missing words (recognized: '{text}')"
-        return "pass", "phrase matches digits and words"
-    return "uncertain", f"unknown challenge type {kind}"
+                return "fail", f"spoken phrase missing words (recognized: '{text}')", {"transcript": text}
+
+        return "pass", "phrase matches digits and words", {"transcript": text}
+
+    return "uncertain", f"unknown challenge type {kind}", {}
 
 
-def _verify_video_person(video_path, id_path, selfie_path, s) -> tuple:
-    """Verify that the face in the liveness video matches BOTH the selfie and the ID card."""
-    import numpy as np
-    from . import face_match, video_deepfake
-
+def _verify_video_person(video_path, id_path, selfie_path, s) -> Tuple[str, str]:
+    """Verify that the face in the liveness video matches selfie and ID."""
+    from . import video_deepfake
     if not video_path:
         return "fail", "no liveness challenge video provided"
 
-    # Embed selfie
-    e_self = None
+    e_self, e_id = None, None
     if selfie_path:
         try:
-            e_self, m_self = face_match.embed_image(selfie_path)
-        except Exception:
-            pass
+            e_self, _ = face_match.embed_image(selfie_path)
+        except Exception as e:
+            logger.warning(f"Failed to embed selfie for liveness comparison: {e}")
 
-    # Embed ID image
-    e_id = None
     if id_path:
         try:
-            e_id, m_id = face_match.embed_image(id_path)
-        except Exception:
-            pass
+            e_id, _ = face_match.embed_image(id_path)
+        except Exception as e:
+            logger.warning(f"Failed to embed ID for liveness comparison: {e}")
 
     if e_self is None and e_id is None:
         return "fail", "neither selfie nor ID face photo available for comparison"
 
-    frames = video_deepfake.sample_frames(video_path, n=4)
+    frames = video_deepfake.sample_frames(video_path, n=6)
     if not frames:
         return "fail", "no video frames could be decoded from liveness video"
 
@@ -190,13 +362,14 @@ def _verify_video_person(video_path, id_path, selfie_path, s) -> tuple:
 
     sims_selfie = []
     sims_id = []
-    multiple_faces_detected = False
+    multiple_faces = False
+
     for f in frames:
         faces = app.get(f)
         if not faces:
             continue
         if len(faces) > 1:
-            multiple_faces_detected = True
+            multiple_faces = True
         main_f = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
         emb = getattr(main_f, "normed_embedding", None)
         if emb is not None:
@@ -205,7 +378,7 @@ def _verify_video_person(video_path, id_path, selfie_path, s) -> tuple:
             if e_id is not None:
                 sims_id.append(float(np.dot(e_id, emb)))
 
-    if multiple_faces_detected:
+    if multiple_faces:
         return "fail", "Multiple faces detected during liveness video"
 
     if not sims_selfie and not sims_id:
@@ -214,13 +387,10 @@ def _verify_video_person(video_path, id_path, selfie_path, s) -> tuple:
     med_selfie = float(np.median(sims_selfie)) if sims_selfie else 0.0
     med_id = float(np.median(sims_id)) if sims_id else 0.0
 
-    threshold_selfie = s.face_pass_sim * 0.85
-    threshold_id = s.face_pass_sim * 0.75
-
-    if e_self is not None and med_selfie < threshold_selfie:
+    if e_self is not None and med_selfie < (s.face_pass_sim * 0.85):
         return "fail", f"Person in liveness video does not match selfie (similarity: {med_selfie:.2f})"
 
-    if e_id is not None and med_id < threshold_id:
+    if e_id is not None and med_id < (s.face_pass_sim * 0.75):
         return "fail", f"Person in liveness video does not match ID document (similarity: {med_id:.2f})"
 
     return "pass", f"Person in video verified against selfie ({med_selfie:.2f}) and ID ({med_id:.2f})"
@@ -232,31 +402,54 @@ def liveness(ctx: CheckContext) -> CheckResult:
     issued = ch.get("issued", [])
     if not issued:
         return CheckResult.skipped("liveness", "No challenges issued")
+
     results, per = ch.get("results", {}), {}
+    vid_path = ctx.files.get("challenge_video")
+    id_path = ctx.files.get("id_image")
+    selfie_path = ctx.files.get("selfie")
+
     try:
-        # 1. Identity Verification: ensure the face in challenge_video matches applicant's selfie and ID FIRST
-        vid_path = ctx.files.get("challenge_video")
-        id_path = ctx.files.get("id_image")
-        selfie_path = ctx.files.get("selfie")
+        # 1. Identity Verification: video face matches selfie/ID
         if vid_path and (selfie_path or id_path):
             v_status, v_note = _verify_video_person(vid_path, id_path, selfie_path, ctx.settings)
-            per["video_person_match"] = (v_status, v_note)
+            per["video_person_match"] = (v_status, v_note, {})
             if v_status == "fail":
-                details = {k: {"status": v[0], "note": v[1]} for k, v in per.items()}
+                details = {k: {"status": v[0], "note": v[1], "details": v[2]} for k, v in per.items()}
                 return CheckResult("liveness", "fail", 0.0, 0.9, f"Liveness check failed: video_person_match: {v_note}", details)
 
+        # 2. Challenge Verification
         for item in issued:
             res = results.get(item["id"])
-            per[item["type"]] = ("fail", "not completed") if res is None else _judge(item, res, ctx)
+            if res is None:
+                per[item["type"]] = ("fail", "not completed", {})
+            else:
+                per[item["type"]] = _judge(item, res, ctx)
 
-    except ImportError:
-        return CheckResult.uncertain("liveness", "Required models not installed for liveness evaluation")
+        # 3. Passive Anti-Spoofing Detector (MiniFASNet on selfie + video frontal frames)
+        if ctx.settings.enforce_gates and (selfie_path or vid_path):
+            from . import video_deepfake
+            frames = video_deepfake.sample_frames(vid_path, n=8) if vid_path else []
+            frontal_crops = video_deepfake.face_crops(frames) if frames else []
+            as_res = anti_spoof.evaluate_anti_spoof(selfie_path, frontal_crops)
+            per["passive_anti_spoof"] = (as_res["status"], as_res["reason"], as_res)
+
+    except ImportError as e:
+        logger.error(f"Required models not installed for liveness: {e}")
+        return CheckResult.uncertain("liveness", f"Required models not installed: {e}")
+    except Exception as e:
+        logger.error(f"Liveness evaluation error: {e}", exc_info=True)
+        return CheckResult.uncertain("liveness", f"Liveness evaluation error: {e}")
+
     statuses = [v[0] for v in per.values()]
-    details = {k: {"status": v[0], "note": v[1]} for k, v in per.items()}
-    score = statuses.count("pass") / len(statuses)
+    details = {k: {"status": v[0], "note": v[1], **v[2]} for k, v in per.items()}
+    score = statuses.count("pass") / max(len(statuses), 1)
+
+    # Note: Passive anti-spoofing only flags needs_review (never hard reject)
     if "fail" in statuses:
         bad = [f"{k}: {v[1]}" for k, v in per.items() if v[0] == "fail"]
         return CheckResult("liveness", "fail", score, 0.7, f"Liveness check failed: {'; '.join(bad)}", details)
-    if "uncertain" in statuses:
-        return CheckResult("liveness", "uncertain", score, 0.3, "Some challenges could not be judged", details)
-    return CheckResult("liveness", "pass", 1.0, 0.7, "All liveness challenges passed", details)
+    if "needs_review" in statuses or "uncertain" in statuses:
+        why = [f"{k}: {v[1]}" for k, v in per.items() if v[0] in ("needs_review", "uncertain")]
+        return CheckResult("liveness", "uncertain", score, 0.4, f"Liveness signals flagged: {'; '.join(why)}", details)
+
+    return CheckResult("liveness", "pass", 1.0, 0.8, "All liveness challenges and anti-spoof checks passed", details)

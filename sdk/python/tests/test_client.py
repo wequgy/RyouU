@@ -11,7 +11,14 @@ from unclone_kyc import (
     WebhookVerificationError,
     verify_webhook,
 )
-from app import security
+import hmac
+import hashlib
+
+
+def _sign_payload(secret: str, body: bytes, ts: int) -> str:
+    mac = hmac.new(secret.encode(), f"{ts}.".encode() + body, hashlib.sha256).hexdigest()
+    return f"t={ts},v1={mac}"
+
 
 
 def test_client_init_validation():
@@ -96,7 +103,7 @@ def test_webhook_verification():
     secret = "whsec_supersecret123"
     raw_payload = b'{"type":"verification.completed","data":{"id":"ver_999","decision":"approved"}}'
     ts = int(time.time())
-    sig = security.sign_payload(secret, raw_payload, ts=ts)
+    sig = _sign_payload(secret, raw_payload, ts=ts)
 
     # Valid signature
     event = verify_webhook(raw_payload, sig, secret, tolerance_s=300)
@@ -112,6 +119,6 @@ def test_webhook_verification():
         verify_webhook(b'{"tampered":true}', sig, secret)
 
     # Expired timestamp raises WebhookVerificationError
-    expired_sig = security.sign_payload(secret, raw_payload, ts=ts - 600)
+    expired_sig = _sign_payload(secret, raw_payload, ts=ts - 600)
     with pytest.raises(WebhookVerificationError):
         verify_webhook(raw_payload, expired_sig, secret, tolerance_s=300)

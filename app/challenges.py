@@ -25,12 +25,15 @@ def issue(vid: str) -> list:
     now = time.time()
     code = "".join(str(secrets.randbelow(10)) for _ in range(4))
     words = secrets.SystemRandom().sample(COMMON_WORDS, 2)
+    turn_dir = secrets.choice(["left", "right"])
+    blink_count = secrets.choice([2, 3])
     issued = [
         {"id": "ch_" + uuid.uuid4().hex[:10], "type": "eye_blink", "issued_at": now,
-         "prompt": "Blink your eyes naturally 2 to 3 times while looking at the camera."},
+         "count": blink_count, "target_blinks": blink_count,
+         "prompt": f"Blink your eyes naturally {blink_count} times while looking at the camera."},
         {"id": "ch_" + uuid.uuid4().hex[:10], "type": "phrase", "issued_at": now,
          "expected_code": code, "expected_digits": code, "expected_words": words,
-         "prompt": f"Repeat twice: {words[0]} {words[1]} {' '.join(code)}"},
+         "prompt": f"{words[0]} {words[1]} {' '.join(code)}"},
     ]
 
     def mut(d):
@@ -51,6 +54,10 @@ def record_results(vid: str, items: list) -> dict:
             if it["id"] not in known or it["id"] in ch.get("results", {}):
                 rejected.append(it["id"])
                 continue
-            ch["results"][it["id"]] = {"metrics": it.get("metrics", {}), "answered_at": now}
+            ch["results"][it["id"]] = {
+                "metrics": it.get("metrics", {}),
+                "prompt_shown_at": it.get("prompt_shown_at", now),
+                "answered_at": it.get("answered_at", now)
+            }
     db.update_data(vid, mut)
     return {"rejected": rejected}

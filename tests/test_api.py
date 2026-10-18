@@ -39,10 +39,14 @@ def run_flow(client, key=LENIENT, *, selfie=b"A", signals=None, answers=None, do
     transcripts = answers or {"name": "my name is Asha Rao", "dob": "12 April 1999", "id_last4": "four eight two one"}
     if do_challenges:
         chs = client.post(f"/flow/{vid}/challenges", headers=fh).json()["challenges"]
-        metrics = {"head_turn": {"yaw_range_deg": 40, "face_present_ratio": 0.95},
-                   "hand_wave": {"occlusion_ratio": 0.3, "face_present_ratio_after": 0.95}, "phrase": {}}
+        metrics = {
+            "head_turn": {"yaw_range_deg": 40, "face_present_ratio": 0.95},
+            "eye_blink": {"blink_count": 2, "face_present_ratio": 0.95},
+            "hand_wave": {"occlusion_ratio": 0.3, "face_present_ratio_after": 0.95},
+            "phrase": {}
+        }
         r = client.post(f"/flow/{vid}/challenges/result", headers=fh,
-                        json={"results": [{"id": c["id"], "metrics": metrics[c["type"]]} for c in chs]})
+                        json={"results": [{"id": c["id"], "metrics": metrics.get(c["type"], {})} for c in chs]})
         assert r.status_code == 200, r.text
         code = next(c["expected_code"] for c in chs if c["type"] == "phrase")
         transcripts = dict(transcripts, phrase=" ".join(code))

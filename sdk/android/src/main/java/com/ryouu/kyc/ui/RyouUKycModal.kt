@@ -128,6 +128,7 @@ fun RyouUKycModal(
     val scope = rememberCoroutineScope()
     val apiClient = remember { KycApiClient() }
 
+    var activeRefId by rememberSaveable { mutableStateOf<String?>(null) }
     var verificationId by rememberSaveable { mutableStateOf<String?>(null) }
     var flowUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var isLoadingSession by rememberSaveable { mutableStateOf(true) }
@@ -184,10 +185,37 @@ fun RyouUKycModal(
         }
     }
 
-    // Trigger permission request and session creation only if not already initialized
-    LaunchedEffect(visible, config.backendUrl, params.referenceId) {
+    var initError by remember { mutableStateOf<String?>(null) }
+    var retryCount by remember { mutableStateOf(0) }
+
+    fun handleCancel() {
+        KycWebViewHolder.clear()
+        flowUrl = null
+        verificationId = null
+        onCancel()
+    }
+
+    // Reset session whenever a new referenceId is passed
+    LaunchedEffect(visible, params.referenceId) {
+        if (!visible) {
+            KycWebViewHolder.clear()
+            return@LaunchedEffect
+        }
+        if (activeRefId != params.referenceId) {
+            activeRefId = params.referenceId
+            verificationId = null
+            flowUrl = null
+            isLoadingSession = true
+            isPollingVerdict = false
+            initError = null
+            KycWebViewHolder.clear()
+        }
+    }
+
+    // Trigger permission request and session creation
+    LaunchedEffect(visible, config.backendUrl, params.referenceId, retryCount) {
         if (!visible) return@LaunchedEffect
-        if (flowUrl != null) {
+        if (flowUrl != null && activeRefId == params.referenceId) {
             isLoadingSession = false
             return@LaunchedEffect
         }
@@ -201,14 +229,16 @@ fun RyouUKycModal(
 
         try {
             isLoadingSession = true
+            initError = null
             val (vId, url) = apiClient.createSession(config, params)
             verificationId = vId
             flowUrl = url
+            activeRefId = params.referenceId
             isLoadingSession = false
         } catch (t: Throwable) {
             isLoadingSession = false
+            initError = t.message ?: "Failed to connect to verification server"
             onError?.invoke(t)
-            onCancel()
         }
     }
 
@@ -221,9 +251,15 @@ fun RyouUKycModal(
             try {
                 val result = apiClient.pollVerdict(config, targetVid)
                 isPollingVerdict = false
+                KycWebViewHolder.clear()
+                flowUrl = null
+                verificationId = null
                 onComplete(result)
             } catch (t: Throwable) {
                 isPollingVerdict = false
+                KycWebViewHolder.clear()
+                flowUrl = null
+                verificationId = null
                 onError?.invoke(t)
                 onCancel()
             }
@@ -249,7 +285,7 @@ fun RyouUKycModal(
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
-                                    .background(Color(0xFF10B981), shape = CircleShape)
+                                    .background(Color(0xFF65A30D), shape = CircleShape)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
@@ -261,7 +297,7 @@ fun RyouUKycModal(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onCancel) {
+                    IconButton(onClick = ::handleCancel) {
                         Text(
                             text = "✕",
                             fontSize = 18.sp,
@@ -374,13 +410,72 @@ fun RyouUKycModal(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = Color(0xFF2563EB))
-                            Spacer(modifier = Modifier.height(12.dp))
+                            CircularProgressIndicator(color = Color(0xFF65A30D))
+                            Spacer(modifier = Modifier.height(14.dp))
                             Text(
                                 text = "Initializing secure KYC session...",
                                 color = Color(0xFF64748B),
                                 fontSize = 14.sp
                             )
+                        }
+                    }
+                }
+
+                // Error indicator with Retry button
+                if (initError != null && !isLoadingSession && flowUrl == null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White)
+                            .padding(28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .background(Color(0xFFFEE2E2), shape = CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("⚠", fontSize = 28.sp, color = Color(0xFFDC2626))
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Unable to Connect to Server",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = initError ?: "Failed to reach customer backend at ${config.backendUrl}",
+                                fontSize = 13.sp,
+                                color = Color(0xFF64748B),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                lineHeight = 18.sp
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            androidx.compose.material3.Button(
+                                onClick = {
+                                    initError = null
+                                    retryCount++
+                                },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = RoundedCornerShape(9999.dp),
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF65A30D)
+                                )
+                            ) {
+                                Text("Retry Connection", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = ::handleCancel,
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                shape = RoundedCornerShape(9999.dp)
+                            ) {
+                                Text("Close", color = Color(0xFF64748B))
+                            }
                         }
                     }
                 }
@@ -398,7 +493,7 @@ fun RyouUKycModal(
                             modifier = Modifier.padding(24.dp)
                         ) {
                             CircularProgressIndicator(
-                                color = Color(0xFF10B981),
+                                color = Color(0xFF65A30D),
                                 modifier = Modifier.size(48.dp)
                             )
                             Spacer(modifier = Modifier.height(18.dp))

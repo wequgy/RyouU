@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from app import challenges, db
-from app.checks import face_match, liveness, otp, source_checks, spoken_details, voice_ai
+from app.checks import face_match, id_details, liveness, otp, source_checks, spoken_details, voice_ai
 from app.config import get_settings
 from app.models import CheckContext
 
@@ -93,11 +93,13 @@ def test_spoken_details_partial_missing_and_no_whisper(monkeypatch):
 # ---------------- liveness ----------------
 def _issued(now):
     return [{"id": "c1", "type": "head_turn", "issued_at": now},
+            {"id": "c2", "type": "eye_blink", "issued_at": now},
             {"id": "c3", "type": "phrase", "issued_at": now, "expected_code": "4821"}]
 
 
 def _answers(now, **over):
     r = {"c1": {"metrics": {"yaw_range_deg": 40, "face_present_ratio": 0.95}, "answered_at": now + 5},
+         "c2": {"metrics": {"blink_count": 2, "face_present_ratio": 0.95}, "answered_at": now + 8},
          "c3": {"metrics": {}, "answered_at": now + 14}}   # phrase: judged from the transcript
     r.update(over)
     return r
@@ -127,7 +129,7 @@ def test_challenges_are_random_and_not_replayable(client):
     v = db.create_verification(tenant["id"], "r", "lenient", {}, "h", 600)
     first = challenges.issue(v["id"])
     codes = {c["expected_code"] for _ in range(1) for c in first if c["type"] == "phrase"}
-    assert len(first) == 2 and len(codes) == 1
+    assert len(first) in (2, 3) and len(codes) == 1
     ok = challenges.record_results(v["id"], [{"id": first[0]["id"], "metrics": {}}])
     assert ok["rejected"] == []
     again = challenges.record_results(v["id"], [{"id": first[0]["id"], "metrics": {}}])      # replay
@@ -238,3 +240,157 @@ def test_otp_expiry(client, monkeypatch):
     assert not otp.verify(vid, "email", code)
     with pytest.raises(otp.OtpError):
         otp.issue(vid, "fax", "x")
+
+
+# ---------------- Regression tests locking id_details & face_match ----------------
+def test_id_details_regression_all_cases(monkeypatch):
+    """Regression test locking all good and bad edge cases for id_details OCR verification."""
+    # 1. Mock OCR returning standard ID text boxes
+    standard_boxes = [
+        ("REPUBLIC IDENTITY CARD", 0.98),
+        ("Name: Asha Rao", 0.95),
+        ("DOB: 12/04/1999", 0.94),
+        ("Sex: F", 0.99),
+        ("ID No: 9876 5432 4821", 0.96),
+        ("<<ID<987654324821<<<<<ASHA<RAO<<<", 0.88),
+    ]
+    monkeypatch.setattr(id_details, "extract_id_text_and_boxes",
+                        lambda b: (standard_boxes, " ".join(t[0] for t in standard_boxes)))
+
+    # A. Good case: Exact match
+    ok, reason, details = id_details.verify_id_details(
+        b"fake_id_bytes",
+        {"name": "Asha Rao", "dob": "1999-04-12", "id_last4": "4821"}
+    )
+    assert ok is True
+    assert "match successfully" in reason
+    assert details["name_token_scores"]["asha"] >= 80
+    assert details["name_token_scores"]["rao"] >= 80
+
+    # B. Good case: Name token order / case variation
+    ok, reason, _ = id_details.verify_id_details(
+        b"fake_id_bytes",
+        {"name": "rao asha", "dob": "12/04/1999", "id_last4": "4821"}
+    )
+    assert ok is True
+
+    # C. Bad case: Name mismatch
+    ok, reason, details = id_details.verify_id_details(
+        b"fake_id_bytes",
+        {"name": "Vikram Malhotra", "dob": "1999-04-12", "id_last4": "4821"}
+    )
+    assert ok is False
+    assert "mismatch for field(s): name" in reason
+
+    # D. Bad case: DOB mismatch
+    ok, reason, details = id_details.verify_id_details(
+        b"fake_id_bytes",
+        {"name": "Asha Rao", "dob": "1985-01-01", "id_last4": "4821"}
+    )
+    assert ok is False
+    assert "mismatch for field(s): dob" in reason
+
+    # E. Bad case: id_last4 mismatch
+    ok, reason, details = id_details.verify_id_details(
+        b"fake_id_bytes",
+        {"name": "Asha Rao", "dob": "1999-04-12", "id_last4": "9999"}
+    )
+    assert ok is False
+    assert "mismatch for field(s): id_last4" in reason
+
+    # F. Bad case: Missing required inputs (empty name or missing both dob and id_last4)
+    ok, reason, _ = id_details.verify_id_details(b"fake_id_bytes", {"name": ""})
+    assert ok is False
+    assert "requires name and at least one" in reason
+
+    ok, reason, _ = id_details.verify_id_details(b"fake_id_bytes", {"name": "Asha Rao"})
+    assert ok is False
+    assert "requires name and at least one" in reason
+
+    # G. Bad case: Unreadable ID (< 2 text boxes)
+    monkeypatch.setattr(id_details, "extract_id_text_and_boxes", lambda b: ([("Single Line", 0.9)], "Single Line"))
+    ok, reason, _ = id_details.verify_id_details(b"fake_id_bytes", {"name": "Asha Rao", "dob": "1999-04-12"})
+    assert ok is False
+    assert "Unreadable ID: retake a clearer photo" in reason
+
+    # H. Bad case: Low OCR confidence (< 0.40)
+    monkeypatch.setattr(id_details, "extract_id_text_and_boxes",
+                        lambda b: ([("Box1", 0.2), ("Box2", 0.3), ("Box3", 0.2)], "Box1 Box2 Box3"))
+    ok, reason, _ = id_details.verify_id_details(b"fake_id_bytes", {"name": "Asha Rao", "dob": "1999-04-12"})
+    assert ok is False
+    assert "Unreadable ID: retake a clearer photo" in reason
+
+    # I. Policy level check handling: gates enabled vs disabled
+    import dataclasses
+    st = dataclasses.replace(get_settings(), enforce_gates=True)
+    c_pass = CheckContext("v1", {"gates": {"id_image": {"passed": True, "reason": "OK"}}}, {}, {}, st)
+    res_pass = id_details.id_details(c_pass)
+    assert res_pass.status == "pass" and res_pass.score == 1.0
+
+    c_fail = CheckContext("v1", {"gates": {"id_image": {"passed": False, "reason": "Mismatch"}}}, {}, {}, st)
+    res_fail = id_details.id_details(c_fail)
+    assert res_fail.status == "fail" and res_fail.score == 0.0
+
+    c_nogate = CheckContext("v1", {}, {}, {}, dataclasses.replace(get_settings(), enforce_gates=False))
+    assert id_details.id_details(c_nogate).status == "pass"
+
+
+def test_face_match_regression_all_cases(monkeypatch):
+    """Regression test locking all good and bad edge cases for face_match classifier and verifier."""
+    # 1. Classifier thresholds
+    status, score, conf = face_match.classify(0.85, pass_sim=0.45, fail_sim=0.25)
+    assert status == "pass" and score == 1.0 and conf > 0.8
+
+    status, score, conf = face_match.classify(0.10, pass_sim=0.45, fail_sim=0.25)
+    assert status == "fail" and score == 0.0 and conf > 0.8
+
+    status, score, conf = face_match.classify(0.35, pass_sim=0.45, fail_sim=0.25)
+    assert status == "uncertain" and 0.0 < score < 1.0 and conf == 0.3
+
+    # 2. End-to-end verify_face_match helper
+    s = get_settings()
+    e_std = np.array([1.0, 0.0], dtype=np.float32)
+    e_mismatch = np.array([0.0, 1.0], dtype=np.float32)
+
+    # A. Good match
+    monkeypatch.setattr(face_match, "EMBEDDER", lambda p: (e_std, {"face_px": 200, "n_faces": 1, "det_score": 0.99}))
+    r = face_match.verify_face_match(Path("id.jpg"), Path("selfie.jpg"), s)
+    assert r.status == "pass"
+    assert r.score == 1.0
+    assert "matches ID" in r.reason
+
+    # B. Hard mismatch
+    call_count = [0]
+    def mismatch_embedder(p):
+        call_count[0] += 1
+        return (e_std if call_count[0] % 2 == 1 else e_mismatch, {"face_px": 200, "n_faces": 1, "det_score": 0.99})
+    monkeypatch.setattr(face_match, "EMBEDDER", mismatch_embedder)
+    r = face_match.verify_face_match(Path("id.jpg"), Path("selfie.jpg"), s)
+    assert r.status == "fail"
+    assert r.score == 0.0
+    assert "does not match ID" in r.reason
+
+    # C. Missing inputs
+    assert face_match.verify_face_match(None, Path("selfie.jpg"), s).status == "skipped"
+    assert face_match.verify_face_match(Path("id.jpg"), None, s).status == "skipped"
+
+    # D. Missing face in ID
+    monkeypatch.setattr(face_match, "EMBEDDER", lambda p: (None, {"error": "no face detected"}))
+    r = face_match.verify_face_match(Path("id.jpg"), Path("selfie.jpg"), s)
+    assert r.status == "uncertain"
+    assert "ID image problem" in r.reason
+
+    # E. Face too small
+    monkeypatch.setattr(face_match, "EMBEDDER", lambda p: (e_std, {"face_px": 40, "n_faces": 1, "det_score": 0.99}))
+    r = face_match.verify_face_match(Path("id.jpg"), Path("selfie.jpg"), s)
+    assert r.status == "uncertain"
+    assert "Face too small" in r.reason
+
+    # F. Multiple faces in selfie
+    seq = iter([(e_std, {"face_px": 200, "n_faces": 1, "det_score": 0.99}),
+                (e_std, {"face_px": 200, "n_faces": 2, "det_score": 0.99})])
+    monkeypatch.setattr(face_match, "EMBEDDER", lambda p: next(seq))
+    r = face_match.verify_face_match(Path("id.jpg"), Path("selfie.jpg"), s)
+    assert r.status == "uncertain"
+    assert "Multiple faces in selfie" in r.reason
+

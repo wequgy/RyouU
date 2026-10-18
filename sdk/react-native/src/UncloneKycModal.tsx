@@ -122,21 +122,30 @@ export const UncloneKycModal: React.FC<UncloneKycModalProps> = ({
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Identity Verification</Text>
-          <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
+          <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7}>
             <Text style={styles.closeText}>✕</Text>
           </TouchableOpacity>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle}>Identity Verification</Text>
+            <View style={styles.secureBadge}>
+              <View style={styles.secureDot} />
+              <Text style={styles.secureText}>256-Bit Encrypted</Text>
+            </View>
+          </View>
+          <View style={styles.helpPlaceholder} />
         </View>
 
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#4F46E5" />
-            <Text style={styles.loadingText}>Initializing secure KYC session...</Text>
+            <ActivityIndicator size="large" color="#65A30D" />
+            <Text style={styles.loadingTitle}>Connecting to secure enclave</Text>
+            <Text style={styles.loadingText}>Initializing biometric verification session…</Text>
           </View>
         ) : submitting ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#10B981" />
-            <Text style={styles.loadingText}>Verifying credentials with server...</Text>
+            <ActivityIndicator size="large" color="#65A30D" />
+            <Text style={styles.loadingTitle}>Evaluating credentials</Text>
+            <Text style={styles.loadingText}>Verifying session with secure server…</Text>
           </View>
         ) : flowUrl ? (
           <WebView
@@ -157,7 +166,7 @@ export const UncloneKycModal: React.FC<UncloneKycModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
   },
   header: {
     flexDirection: 'row',
@@ -165,33 +174,76 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#E2E8F0',
+  },
+  headerTitleWrap: {
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  secureBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  secureDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#65A30D',
+  },
+  secureText: {
+    fontSize: 10,
     fontWeight: '600',
-    color: '#111827',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   closeBtn: {
-    padding: 6,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeText: {
-    fontSize: 18,
-    color: '#6B7280',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  helpPlaceholder: {
+    width: 34,
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 28,
+    backgroundColor: '#F8FAFC',
+  },
+  loadingTitle: {
+    marginTop: 18,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 14,
-    color: '#4B5563',
+    marginTop: 6,
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
   },
   webview: {
     flex: 1,
+    backgroundColor: '#F8FAFC',
   },
 });
+

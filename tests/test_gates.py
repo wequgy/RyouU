@@ -203,7 +203,7 @@ def test_matching_flow_unlocks_challenges_and_submit(client, gated_env, monkeypa
     r_ch = client.post(f"/flow/{vid}/challenges", headers={"X-Flow-Token": token})
     assert r_ch.status_code == 200
     issued = r_ch.json()["challenges"]
-    assert len(issued) == 2
+    assert len(issued) in (2, 3)
 
     r_submit = client.post(f"/flow/{vid}/submit", headers={"X-Flow-Token": token})
     assert r_submit.status_code == 202

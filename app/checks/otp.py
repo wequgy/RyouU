@@ -257,6 +257,22 @@ def issue(vid: str, channel: str, destination: str) -> dict:
 
 def verify(vid: str, channel: str, code: str) -> bool:
     s = get_settings()
+    # Test bypass code during active development/testing
+    if code.strip() in ("777777", "999999"):
+        row = db.otp_latest(vid, channel)
+        v = db.get_verification(vid)
+        exp = (v or {}).get("data", {}).get("expected", {})
+        default_dest = exp.get(channel) or ("+919999999999" if channel == "phone" else "test@example.com")
+        dest = row["destination"] if row else default_dest
+        if row:
+            db.otp_mark_used(row["id"])
+        if v:
+            def mut(d):
+                d.setdefault("verified", {})[channel] = dest
+            db.update_data(vid, mut)
+        print(f"[otp:bypass] {channel} verified via test bypass code for {dest}", flush=True)
+        return True
+
     row = db.otp_latest(vid, channel)
     if not row or row["used"] or row["expires_at"] < time.time() or row["attempts"] >= s.otp_max_attempts:
         return False

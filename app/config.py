@@ -59,6 +59,7 @@ class Settings:
     max_upload_mb: int
     focus_loss_review_count: int
     enforce_gates: bool
+    strict_mode: bool
 
 
 def get_settings() -> Settings:
@@ -69,8 +70,9 @@ def get_settings() -> Settings:
         public_base_url=os.environ.get("PUBLIC_BASE_URL", "http://localhost:8000"),
         flow_base_url=os.environ.get("FLOW_BASE_URL", "http://localhost:3000/verify"),
         cors_origins=[o.strip() for o in os.environ.get("KYC_CORS_ORIGINS", "*").split(",") if o.strip()],
-        dev_mode=_flag("KYC_DEV_MODE"),
+        dev_mode=_flag("KYC_DEV_MODE", False),
         seed_demo=_flag("KYC_SEED_DEMO", False),
+        strict_mode=_flag("KYC_STRICT", True),
         demo_webhook_url=os.environ.get("DEMO_WEBHOOK_URL", "http://localhost:9000/webhooks/kyc"),
         demo_webhook_secret=os.environ.get("DEMO_WEBHOOK_SECRET", "whsec_demo"),
         flow_token_ttl_s=int(_num("FLOW_TOKEN_TTL_S", 1800)),

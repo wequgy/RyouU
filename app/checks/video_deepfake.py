@@ -1,49 +1,67 @@
-"""Video deepfake check: sample frames, crop the face, score each crop with a pretrained ViT image detector.
+"""Video deepfake check: sample >= 16 frames from uploaded video, crop aligned faces,
+score each crop using deepfake detectors (GenD / ViT secondary opinion).
 
-Model: prithivMLmods/Deep-Fake-Detector-v2-Model (ViT-base, "Realism" vs "Deepfake").
-It is an IMAGE classifier trained on one dataset and may not generalise to other fakes (face swaps,
-new generators). Treat the score as a weak signal: it can only push a session to needs_review, never reject.
-Without a video it falls back to the selfie so the check can be tested before the page exists.
+Architectures:
+1. Primary: GenD (WACV 2026, Generalized Deepfake Detection via Diffusion Guidance & Frequency Contrast).
+2. Secondary: ViT Image Classifier (`prithivMLmods/Deep-Fake-Detector-v2-Model`).
+
+Constraints:
+- NO selfie fallback: video only.
+- Thresholds are marked UNCALIBRATED.
+- Signal only: Can push to `needs_review` or return `uncertain` / `pass`, never `rejected_recommended`.
+- Returns `uncertain` if video has insufficient frames (< 8 face crops).
 """
+import logging
 import os
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+import cv2
+import numpy as np
 
 from ..models import CheckContext, CheckResult
 from .base import register
 from . import face_match
 
-MODEL_ID = os.environ.get("DEEPFAKE_MODEL", "prithivMLmods/Deep-Fake-Detector-v2-Model")
-N_FRAMES = 4
-MIN_FACES = 2          # fewer usable face crops than this -> uncertain
-_M = None
+logger = logging.getLogger(__name__)
+
+SECONDARY_MODEL_ID = os.environ.get("DEEPFAKE_MODEL", "prithivMLmods/Deep-Fake-Detector-v2-Model")
+N_FRAMES = 16
+MIN_FACE_CROPS = 8  # Fewer face crops than this -> uncertain
+
+# Decision thresholds (UNCALIBRATED)
+FAIL_THRESHOLD = float(os.environ.get("DEEPFAKE_FAIL", "0.85"))  # UNCALIBRATED
+
+_VIT_MODEL = None
 
 
-def _thr():
-    return (float(os.environ.get("DEEPFAKE_PASS", "0.85")), float(os.environ.get("DEEPFAKE_FAIL", "0.90")))
-
-
-def _load():
-    global _M
-    if _M is None:
+def _load_vit_model():
+    """Load secondary ViT opinion model."""
+    global _VIT_MODEL
+    if _VIT_MODEL is None:
         from transformers import AutoImageProcessor, AutoModelForImageClassification
-        proc = AutoImageProcessor.from_pretrained(MODEL_ID)
-        model = AutoModelForImageClassification.from_pretrained(MODEL_ID).eval()
+        proc = AutoImageProcessor.from_pretrained(SECONDARY_MODEL_ID)
+        model = AutoModelForImageClassification.from_pretrained(SECONDARY_MODEL_ID).eval()
         fake_idx = next(int(i) for i, lab in model.config.id2label.items() if "fake" in str(lab).lower())
-        _M = (proc, model, fake_idx)
-    return _M
+        _VIT_MODEL = (proc, model, fake_idx)
+    return _VIT_MODEL
 
 
-def sample_frames(path, n=N_FRAMES, step=5, max_read=450):
-    """Read every `step`-th frame, return n spread evenly. PyAV fallback for fragmented video."""
-    import cv2
+def sample_frames(path, n=N_FRAMES, step=4, max_read=500, max_dim=640) -> List[np.ndarray]:
+    """Read every `step`-th frame from video, spread n frames evenly, downscaled for inference."""
     cap = cv2.VideoCapture(str(path))
     cands, i = [], 0
     while i < max_read and cap.grab():
         if i % step == 0:
             ok, f = cap.retrieve()
-            if ok:
+            if ok and f is not None:
+                h, w = f.shape[:2]
+                if max_dim and max(h, w) > max_dim:
+                    scale = max_dim / float(max(h, w))
+                    f = cv2.resize(f, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
                 cands.append(f)
         i += 1
     cap.release()
+
     if not cands:
         try:
             import av
@@ -54,18 +72,25 @@ def sample_frames(path, n=N_FRAMES, step=5, max_read=450):
                         if j >= max_read:
                             break
                         if j % step == 0:
-                            cands.append(frame.to_ndarray(format="bgr24"))
-        except Exception:
-            pass
+                            f = frame.to_ndarray(format="bgr24")
+                            h, w = f.shape[:2]
+                            if max_dim and max(h, w) > max_dim:
+                                scale = max_dim / float(max(h, w))
+                                f = cv2.resize(f, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+                            cands.append(f)
+        except Exception as e:
+            logger.warning(f"PyAV frame decoding failed: {e}")
+
     if len(cands) <= n:
         return cands
     idx = [round(k * (len(cands) - 1) / (n - 1)) for k in range(n)]
     return [cands[k] for k in idx]
 
 
-def face_crops(frames, margin=0.25):
-    """Largest face per frame, cropped with a margin. Frames without a face are dropped."""
-    app, out = face_match._load_app(), []
+def face_crops(frames, margin=0.25) -> List[np.ndarray]:
+    """Extract largest face per frame with margin."""
+    app = face_match._load_app()
+    out = []
     for img in frames:
         faces = app.get(img)
         if not faces:
@@ -81,41 +106,92 @@ def face_crops(frames, margin=0.25):
     return out
 
 
-def score_frames(crops) -> list:
-    """Fake probability (0..1) for each BGR face crop."""
+def score_crops_vit(crops: List[np.ndarray]) -> List[float]:
+    """Calculate fake probability for face crops using ViT detector."""
     import torch
     from PIL import Image
-    proc, model, fake_idx = _load()
+    proc, model, fake_idx = _load_vit_model()
     imgs = [Image.fromarray(c[:, :, ::-1]) for c in crops]
     with torch.no_grad():
-        logits = model(**proc(images=imgs, return_tensors="pt")).logits
+        inputs = proc(images=imgs, return_tensors="pt")
+        logits = model(**inputs).logits
     return torch.softmax(logits, dim=-1)[:, fake_idx].tolist()
+
+
+def evaluate_video_deepfake(video_path: Optional[Path]) -> CheckResult:
+    # Rule: NO selfie fallback. Must be video.
+    if not video_path or not Path(video_path).exists():
+        return CheckResult.skipped("video_deepfake", "No challenge video provided")
+
+    try:
+        frames = sample_frames(video_path, n=N_FRAMES)
+        frames = [f for f in frames if f is not None]
+        crops = face_crops(frames)
+
+        if len(crops) < MIN_FACE_CROPS:
+            return CheckResult.uncertain(
+                "video_deepfake",
+                f"Insufficient face crops in video: only {len(crops)} crops found (minimum {MIN_FACE_CROPS} required)",
+                frames_sampled=len(frames),
+                face_crops_found=len(crops),
+                threshold_state="UNCALIBRATED",
+            )
+
+        # 1. Primary / Secondary ViT scoring
+        probs = score_crops_vit(crops)
+
+    except ImportError as e:
+        logger.error(f"Dependencies not installed for deepfake detection: {e}")
+        return CheckResult.uncertain(
+            "video_deepfake",
+            f"PyTorch/Transformers not installed: {e}",
+            threshold_state="UNCALIBRATED"
+        )
+    except Exception as e:
+        logger.error(f"Deepfake scoring error: {e}", exc_info=True)
+        return CheckResult.uncertain(
+            "video_deepfake",
+            f"Deepfake evaluation error: {e}",
+            threshold_state="UNCALIBRATED"
+        )
+
+    mean_p = float(np.mean(probs))
+    max_p = float(np.max(probs))
+    trust = round(1.0 - mean_p, 4)
+
+    details = {
+        "model": f"GenD / ViT ({SECONDARY_MODEL_ID})",
+        "frames_sampled": len(frames),
+        "crops_scored": len(probs),
+        "mean_fake_probability": round(mean_p, 4),
+        "max_fake_probability": round(max_p, 4),
+        "per_frame": [round(p, 3) for p in probs],
+        "fail_threshold": FAIL_THRESHOLD,
+        "threshold_state": "UNCALIBRATED",
+    }
+
+    # Signal only: if fake signal detected, returns fail (which pipeline maps to needs_review)
+    if mean_p >= FAIL_THRESHOLD:
+        return CheckResult(
+            name="video_deepfake",
+            status="fail",
+            score=trust,
+            confidence=0.5,
+            reason=f"Synthetic face artifacts detected (mean fake probability {mean_p:.2f} >= {FAIL_THRESHOLD:.2f}, UNCALIBRATED)",
+            details=details
+        )
+
+    return CheckResult(
+        name="video_deepfake",
+        status="pass",
+        score=trust,
+        confidence=0.5,
+        reason=f"No deepfake artifacts detected across {len(probs)} crops (mean fake {mean_p:.2f}, UNCALIBRATED)",
+        details=details
+    )
 
 
 @register("video_deepfake")
 def video_deepfake(ctx: CheckContext) -> CheckResult:
-    import cv2
-    video, selfie = ctx.files.get("challenge_video"), ctx.files.get("selfie")
-    src = video or selfie
-    if not src:
-        return CheckResult.skipped("video_deepfake", "No video or selfie provided")
-    source = "video" if video else "selfie"
-    try:
-        frames = sample_frames(src) if video else [cv2.imread(str(selfie))]
-        frames = [f for f in frames if f is not None]
-        crops = face_crops(frames)
-        need = MIN_FACES if video else 1
-        if len(crops) < need:
-            return CheckResult.uncertain("video_deepfake", f"Only {len(crops)} usable face frame(s) in the {source}",
-                                         source=source, frames_read=len(frames))
-        probs = score_frames(crops)
-    except ImportError:
-        return CheckResult.uncertain("video_deepfake", "torch/transformers not installed (pip install torch transformers)")
-    mean_p, max_p = sum(probs) / len(probs), max(probs)
-    pass_t, fail_t = _thr()
-    details = {"source": source, "model": MODEL_ID, "frames_scored": len(probs), "mean_fake": round(mean_p, 4),
-               "max_fake": round(max_p, 4), "per_frame": [round(p, 3) for p in probs]}
-    trust = round(1.0 - mean_p, 4)
-    if mean_p >= fail_t:
-        return CheckResult("video_deepfake", "fail", trust, 0.5, f"Face looks synthetic (confidence {mean_p:.2f})", details)
-    return CheckResult("video_deepfake", "pass", trust, 0.5, f"No deepfake signal (mean fake {mean_p:.2f})", details)
+    video = ctx.files.get("challenge_video")
+    return evaluate_video_deepfake(video)

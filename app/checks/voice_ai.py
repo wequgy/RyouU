@@ -35,7 +35,7 @@ def _call_detectif(method: str, endpoint: str, session_id: str, settings, path=N
         for attempt in range(1, settings.detectif_max_attempts + 1):
             try:
                 if path and file_bytes:
-                    mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+                    mime = "audio/webm" if path.suffix.lower() == ".webm" else (mimetypes.guess_type(path.name)[0] or "audio/wav")
                     files = {"file": (path.name, file_bytes, mime)}
                     r = client.request(method, url, headers=headers, files=files, data=data_payload, params=params)
                 elif data_payload:
@@ -124,6 +124,8 @@ def voice_ai(ctx: CheckContext) -> CheckResult:
 
     if verdict == "fake":
         return CheckResult("voice_ai", "fail", trust, 0.7, f"Voice likely AI-generated (fake score {fake_p:.2f})", details)
+    if verdict == "not_sure":
+        return CheckResult("voice_ai", "uncertain", trust, 0.2, f"Detectif voice check inconclusive (score {fake_p:.2f})", details)
 
     # 2. Speaker consistency (enrollment vs later clips)
     speaker_id = ctx.data.get("detectif_speaker_id")

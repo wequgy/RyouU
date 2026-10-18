@@ -18,6 +18,9 @@ env/
 # Node / JavaScript dependencies
 node_modules/
 **/node_modules/
+dist/
+**/dist/
+dist-test/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -37,6 +40,8 @@ data/.encryption_key
 *.pth
 *.safetensors
 .cache/
+!models/minifasnet_v2.onnx
+!models/face_landmarker.task
 
 # Archives and temporary files
 *.zip
@@ -44,6 +49,7 @@ data/.encryption_key
 *.log
 
 # Editor and AI tools
+.agents/
 .vscode/
 .idea/
 .claude/

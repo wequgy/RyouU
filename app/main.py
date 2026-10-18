@@ -46,11 +46,106 @@ UPLOAD_KINDS = {"id_image": IMAGE_EXT, "selfie": IMAGE_EXT, "challenge_audio": A
 TRANSCRIPT_KEYS = {"name", "dob", "id_last4", "phrase"}
 
 
+def check_system_readiness():
+    """Verify operational readiness of every required AI model, database, and Detectif API."""
+    s = get_settings()
+    models = {}
+
+    # 1. InsightFace buffalo_l
+    try:
+        from .checks import face_match
+        face_match._load_app()
+        models["InsightFace (buffalo_l)"] = {"status": "ready", "license": "InsightFace Non-Commercial", "purpose": "Face embeddings and pose yaw"}
+    except Exception as e:
+        models["InsightFace (buffalo_l)"] = {"status": "error", "error": str(e)}
+
+    # 2. MediaPipe Face Landmarker
+    try:
+        from .checks import liveness
+        liveness._load_face_landmarker()
+        models["MediaPipe Face Landmarker (face_landmarker.task)"] = {"status": "ready", "license": "Apache-2.0", "purpose": "Eye blink blendshapes"}
+    except Exception as e:
+        models["MediaPipe Face Landmarker (face_landmarker.task)"] = {"status": "error", "error": str(e)}
+
+    # 3. MiniFASNet Passive Anti-Spoofing
+    try:
+        from .checks import anti_spoof
+        anti_spoof._load_session()
+        models["MiniFASNetV2 (Silent-Face-Anti-Spoofing)"] = {"status": "ready", "license": "Apache-2.0", "purpose": "Passive face anti-spoofing"}
+    except Exception as e:
+        models["MiniFASNetV2 (Silent-Face-Anti-Spoofing)"] = {"status": "error", "error": str(e)}
+
+    # 4. RapidOCR
+    try:
+        from .checks import id_details
+        id_details._get_ocr()
+        models["RapidOCR (onnxruntime)"] = {"status": "ready", "license": "Apache-2.0", "purpose": "ID document text extraction"}
+    except Exception as e:
+        models["RapidOCR (onnxruntime)"] = {"status": "error", "error": str(e)}
+
+    # 5. Faster-Whisper
+    try:
+        from faster_whisper import WhisperModel
+        models["Faster-Whisper (ASR)"] = {"status": "ready", "model": s.whisper_model, "license": "MIT", "purpose": "Speech transcription"}
+    except Exception as e:
+        models["Faster-Whisper (ASR)"] = {"status": "error", "error": str(e)}
+
+    # 6. ViT Deepfake Detector
+    try:
+        from .checks import video_deepfake
+        video_deepfake._load_vit_model()
+        models["ViT Deepfake Detector (prithivMLmods/Deep-Fake-Detector-v2-Model)"] = {"status": "ready", "license": "Apache-2.0", "purpose": "Visual deepfake classification"}
+    except Exception as e:
+        models["ViT Deepfake Detector (prithivMLmods/Deep-Fake-Detector-v2-Model)"] = {"status": "error", "error": str(e)}
+
+    # 7. SyncNet Lip-Sync
+    try:
+        from .checks import lip_sync
+        has_w = lip_sync.SYNCNET_WEIGHTS_PATH.exists() and lip_sync.S3FD_WEIGHTS_PATH.exists()
+        models["SyncNet (syncnet-python)"] = {
+            "status": "ready" if has_w else "uncalibrated",
+            "weights_present": has_w,
+            "license": "MIT",
+            "purpose": "Audio-visual lip synchronization"
+        }
+    except Exception as e:
+        models["SyncNet (syncnet-python)"] = {"status": "error", "error": str(e)}
+
+    # 8. Detectif.ai Voice API
+    if s.detectif_api_key:
+        models["Detectif.ai (Voice AI)"] = {"status": "configured", "base_url": s.detectif_base_url, "purpose": "Voice cloning & speaker verification"}
+    else:
+        models["Detectif.ai (Voice AI)"] = {"status": "unconfigured", "error": "DETECTIF_API_KEY not set"}
+
+    # In production strict mode, critical components must be ready
+    critical_names = [
+        "InsightFace (buffalo_l)",
+        "MediaPipe Face Landmarker (face_landmarker.task)",
+        "MiniFASNetV2 (Silent-Face-Anti-Spoofing)",
+        "RapidOCR (onnxruntime)",
+        "Faster-Whisper (ASR)",
+        "ViT Deepfake Detector (prithivMLmods/Deep-Fake-Detector-v2-Model)"
+    ]
+    all_ready = all(models.get(name, {}).get("status") in ("ready", "configured", "uncalibrated") for name in critical_names)
+    return all_ready, models
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
-    if get_settings().seed_demo:
+    s = get_settings()
+    if s.seed_demo:
         db.seed_demo_tenants()
+
+    # Fail fast if critical components unavailable under strict production mode
+    if s.strict_mode and not s.dev_mode:
+        all_ready, models = check_system_readiness()
+        if not all_ready or models.get("Detectif.ai (Voice AI)", {}).get("status") != "configured":
+            failed = [f"{k}: {v.get('error', 'not ready')}" for k, v in models.items() if v.get("status") not in ("ready", "configured", "uncalibrated")]
+            if not s.detectif_api_key:
+                failed.append("Detectif.ai: DETECTIF_API_KEY is missing")
+            raise RuntimeError(f"Startup aborted under KYC_STRICT=1: {'; '.join(failed)}")
+
     # Process any pending jobs from previous runs
     pending = db.get_pending_pipeline_jobs()
     for job in pending:
@@ -85,63 +180,18 @@ def healthz():
 
 @app.get("/readyz")
 def readyz():
-    s = get_settings()
-    models_status = {}
-    
-    # 1. RapidOCR
-    try:
-        from .checks.id_details import _get_ocr
-        _get_ocr()
-        models_status["rapidocr"] = "ok"
-    except Exception as e:
-        models_status["rapidocr"] = f"error: {e}"
+    all_ready, models = check_system_readiness()
+    status_code = 200 if all_ready else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "ready" if all_ready else "not_ready",
+            "strict_mode": get_settings().strict_mode,
+            "models": models,
+        }
+    )
 
-    # 2. InsightFace
-    try:
-        from .checks.face_match import _load_app
-        _load_app()
-        models_status["insightface"] = "ok"
-    except Exception as e:
-        models_status["insightface"] = f"error: {e}"
 
-    # 3. Whisper
-    try:
-        from .checks.spoken_details import _WHISPER
-        models_status["whisper"] = "ok"
-    except Exception as e:
-        models_status["whisper"] = f"error: {e}"
-
-    # 4. Deepfake ViT / GenD
-    try:
-        from .checks.video_deepfake import _load
-        _load()
-        models_status["deepfake_vit"] = "ok"
-    except Exception as e:
-        models_status["deepfake_vit"] = f"error: {e}"
-
-    # 5. Detectif credits / health
-    detectif_status = {"status": "ok", "credits": None}
-    if s.detectif_api_key:
-        try:
-            from .checks.voice_ai import get_credits
-            cr = get_credits(s)
-            detectif_status["credits"] = cr
-        except Exception as e:
-            detectif_status["status"] = "error"
-            detectif_status["error"] = str(e)
-    else:
-        detectif_status["status"] = "missing_api_key"
-
-    all_ready = all(v == "ok" for v in models_status.values()) and (detectif_status["status"] == "ok")
-    resp_body = {
-        "status": "ready" if all_ready else "not_ready",
-        "models": models_status,
-        "detectif": detectif_status
-    }
-
-    if os.environ.get("KYC_STRICT") == "1" and not all_ready:
-        return JSONResponse(status_code=503, content=resp_body)
-    return resp_body
 
 
 @app.get("/flow", response_class=HTMLResponse, include_in_schema=False)
@@ -408,6 +458,26 @@ def flow_context(vid: str, v: dict = Depends(require_flow)):
     }
 
 
+class FlowDetailsBody(BaseModel):
+    name: Optional[str] = None
+    dob: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+
+@app.post("/flow/{vid}/details")
+def update_flow_details(vid: str, body: FlowDetailsBody, v: dict = Depends(require_flow)):
+    _editable(v)
+    def mut(d):
+        exp = d.setdefault("expected", {})
+        if body.name: exp["name"] = body.name.strip()
+        if body.dob: exp["dob"] = body.dob.strip()
+        if body.email: exp["email"] = body.email.strip()
+        if body.phone: exp["phone"] = body.phone.strip()
+    db.update_data(vid, mut)
+    return {"updated": True}
+
+
 @app.post("/flow/{vid}/otp/send")
 def otp_send(request: Request, vid: str, body: OtpSend, v: dict = Depends(require_flow)):
     _editable(v)
@@ -420,12 +490,24 @@ def otp_send(request: Request, vid: str, body: OtpSend, v: dict = Depends(requir
         raise HTTPException(429 if "Too many" in str(e) else 400, str(e))
 
 
+@app.post("/flow/{vid}/gates/{channel}/send")
+def gate_otp_send(request: Request, vid: str, channel: str, body: dict, v: dict = Depends(require_flow)):
+    dest = body.get("destination") or body.get("phone") or body.get("email") or ""
+    return otp_send(request, vid, OtpSend(channel=channel, destination=dest), v)
+
+
 @app.post("/flow/{vid}/otp/verify")
 def otp_verify(vid: str, body: OtpVerify, v: dict = Depends(require_flow)):
     _editable(v)
     if not otp.verify(vid, body.channel, body.code):
         raise HTTPException(400, "Invalid or expired code")
     return {"verified": True, "channel": body.channel}
+
+
+@app.post("/flow/{vid}/gates/{channel}/verify")
+def gate_otp_verify(vid: str, channel: str, body: dict, v: dict = Depends(require_flow)):
+    code = body.get("code") or ""
+    return otp_verify(vid, OtpVerify(channel=channel, code=code), v)
 
 
 @app.post("/flow/{vid}/upload/{kind}")

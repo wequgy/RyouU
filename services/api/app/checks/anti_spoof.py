@@ -80,17 +80,18 @@ def score_face_crop(face_80x80: np.ndarray) -> Tuple[float, Dict[str, float]]:
 
 
 def evaluate_anti_spoof(selfie_path: Optional[Path], frontal_crops: List[np.ndarray]) -> Dict[str, Any]:
-    """Run passive anti-spoofing on selfie and video frontal frames."""
+    """Run passive anti-spoofing on selfie and video frontal frames using MiniFASNetV2."""
     scores = []
     frames_scored = 0
 
     try:
-        # 1. Score selfie if available
+        from . import face_match
+        app = face_match._load_app()
+
+        # 1. Score selfie if available with proper 2.7x scale multiscale crop
         if selfie_path and Path(selfie_path).exists():
             img = cv2.imread(str(selfie_path))
             if img is not None:
-                from . import face_match
-                app = face_match._load_app()
                 faces = app.get(img)
                 if faces:
                     f = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
@@ -100,13 +101,26 @@ def evaluate_anti_spoof(selfie_path: Optional[Path], frontal_crops: List[np.ndar
                         scores.append(real_p)
                         frames_scored += 1
 
-        # 2. Score video frontal crops
-        for crop in frontal_crops[:8]:
-            if crop is not None:
-                resized = cv2.resize(crop, (80, 80))
-                real_p, _ = score_face_crop(resized)
-                scores.append(real_p)
-                frames_scored += 1
+        # 2. Score video frontal frames / crops
+        for item in frontal_crops[:8]:
+            if item is None:
+                continue
+            # If item is a full image frame (shape > 100x100), detect face and apply 2.7x multiscale crop
+            if item.shape[0] > 100 and item.shape[1] > 100:
+                faces = app.get(item)
+                if faces:
+                    f = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
+                    crop = crop_face_multiscale(item, f.bbox, scale=2.7)
+                    if crop is not None:
+                        real_p, _ = score_face_crop(crop)
+                        scores.append(real_p)
+                        frames_scored += 1
+                        continue
+            # If item is already a face crop, resize directly
+            resized = cv2.resize(item, (80, 80))
+            real_p, _ = score_face_crop(resized)
+            scores.append(real_p)
+            frames_scored += 1
 
     except Exception as e:
         logger.warning(f"MiniFASNet anti-spoof evaluation failed: {e}")
@@ -130,15 +144,22 @@ def evaluate_anti_spoof(selfie_path: Optional[Path], frontal_crops: List[np.ndar
         }
 
     mean_real = float(np.mean(scores))
+    median_real = float(np.median(scores))
     min_real = float(np.min(scores))
 
-    # Signal only: if below threshold, triggers needs_review (never hard reject)
-    if mean_real < REAL_THRESHOLD or min_real < (REAL_THRESHOLD * 0.7):
+    # Robust multi-frame spoofing classification:
+    # A genuine user has high mean (>= 0.50). A single motion-blurred frame must not flag presentation attack.
+    # A presentation attack produces low scores across multiple frames.
+    spoof_frames = sum(1 for s in scores if s < (REAL_THRESHOLD * 0.7))
+    is_spoof = (mean_real < REAL_THRESHOLD) or (spoof_frames >= (len(scores) / 2.0) and median_real < REAL_THRESHOLD)
+
+    if is_spoof:
         return {
             "status": "needs_review",
             "reason": f"Passive anti-spoofing warning: presentation attack suspected (real score {mean_real:.2f})",
             "frames_scored": frames_scored,
             "mean_real_score": round(mean_real, 4),
+            "median_real_score": round(median_real, 4),
             "min_real_score": round(min_real, 4),
             "threshold": REAL_THRESHOLD,
             "threshold_state": "UNCALIBRATED",
@@ -149,6 +170,7 @@ def evaluate_anti_spoof(selfie_path: Optional[Path], frontal_crops: List[np.ndar
         "reason": f"Passive anti-spoofing passed (real score {mean_real:.2f})",
         "frames_scored": frames_scored,
         "mean_real_score": round(mean_real, 4),
+        "median_real_score": round(median_real, 4),
         "min_real_score": round(min_real, 4),
         "threshold": REAL_THRESHOLD,
         "threshold_state": "UNCALIBRATED",

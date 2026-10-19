@@ -78,13 +78,17 @@ def _compute_ear(lm_3d_68) -> float:
 
 
 def _detect_server_blinks(video_path, target_blinks: int = 2) -> Tuple[str, str, Dict[str, Any]]:
-    """Judge eye blinks using MediaPipe Face Landmarker blendshapes.
+    """Judge eye blinks using MediaPipe Face Landmarker blendshapes and 3D eye landmarks.
     
     Returns:
         (status, reason, details)
     """
     from . import video_deepfake
-    frames = video_deepfake.sample_frames(video_path, n=24)
+    try:
+        frames = video_deepfake.sample_frames(video_path, n=75, step=1)
+    except TypeError:
+        frames = video_deepfake.sample_frames(video_path, n=24)
+
     if not frames or len(frames) < 6:
         return "uncertain", "Insufficient video frames to evaluate eye blinks", {"frames": len(frames) if frames else 0}
 
@@ -109,19 +113,31 @@ def _detect_server_blinks(video_path, target_blinks: int = 2) -> Tuple[str, str,
         has_mp_face = bool(getattr(res, "face_landmarks", None) and len(res.face_landmarks) > 0)
         if has_mp_face:
             face_count += 1
+            lms = res.face_landmarks[0]
+            try:
+                d_v1_l = np.linalg.norm([lms[160].x - lms[144].x, lms[160].y - lms[144].y])
+                d_v2_l = np.linalg.norm([lms[158].x - lms[153].x, lms[158].y - lms[153].y])
+                d_h_l = np.linalg.norm([lms[33].x - lms[133].x, lms[33].y - lms[133].y])
+                ear_l = (d_v1_l + d_v2_l) / (2.0 * max(d_h_l, 1e-5))
 
-        # Cross-check: InsightFace EAR on up to 5 frames
-        if len(ears_logged) < 5 or not has_mp_face:
+                d_v1_r = np.linalg.norm([lms[385].x - lms[380].x, lms[385].y - lms[380].y])
+                d_v2_r = np.linalg.norm([lms[387].x - lms[373].x, lms[387].y - lms[373].y])
+                d_h_r = np.linalg.norm([lms[362].x - lms[263].x, lms[362].y - lms[263].y])
+                ear_r = (d_v1_r + d_v2_r) / (2.0 * max(d_h_r, 1e-5))
+
+                ears_logged.append(float((ear_l + ear_r) / 2.0))
+            except Exception:
+                pass
+        else:
             faces = app.get(f)
             if faces:
-                if not has_mp_face:
-                    face_count += 1
+                face_count += 1
                 main_f = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
                 lm = getattr(main_f, "landmark_3d_68", None)
                 if lm is not None:
                     ears_logged.append(_compute_ear(lm))
 
-        if res.face_blendshapes and len(res.face_blendshapes) > 0:
+        if getattr(res, "face_blendshapes", None) and len(res.face_blendshapes) > 0:
             cats = {cat.category_name: cat.score for cat in res.face_blendshapes[0]}
             blink_l = cats.get("eyeBlinkLeft", 0.0)
             blink_r = cats.get("eyeBlinkRight", 0.0)
@@ -131,30 +147,42 @@ def _detect_server_blinks(video_path, target_blinks: int = 2) -> Tuple[str, str,
             blendshape_scores.append(0.0)
 
     face_ratio = face_count / max(len(frames), 1)
-    if face_ratio < 0.5:
+    if face_ratio < 0.4:
         return "fail", f"Face not continuously visible in blink video (ratio {face_ratio:.2f})", {
             "face_ratio": round(face_ratio, 2)
         }
 
-    # Blink peak detection: State machine (0: open, 1: closing/closed)
-    # Open baseline on webcams/mobile is ~0.02-0.08, blink peaks typically >= 0.12 - 0.40
-    baseline = float(np.percentile(blendshape_scores, 25)) if blendshape_scores else 0.05
-    peak_thresh = max(0.12, baseline + 0.06)
-    reset_thresh = max(0.06, baseline + 0.03)
+    # Blink peak detection: Dynamic baseline & Schmitt trigger
+    baseline = float(np.percentile(blendshape_scores, 20)) if blendshape_scores else 0.05
+    peak_thresh = max(0.25, baseline + 0.15)
+    reset_thresh = max(0.12, baseline + 0.06)
 
     blink_count = 0
     in_blink = False
-    for score in blendshape_scores:
-        if not in_blink and score >= peak_thresh:
-            in_blink = True
-            blink_count += 1
-        elif in_blink and score < reset_thresh:
-            in_blink = False
+    peak_val = 0.0
 
-    # Also check InsightFace Eye Aspect Ratio (EAR) dip if blendshapes were subtle
-    if blink_count == 0 and len(ears_logged) >= 3:
-        ear_range = max(ears_logged) - min(ears_logged)
-        if ear_range >= 0.05:
+    for score in blendshape_scores:
+        if not in_blink:
+            if score >= peak_thresh:
+                in_blink = True
+                peak_val = score
+        else:
+            peak_val = max(peak_val, score)
+            if score < reset_thresh:
+                if (peak_val - baseline) >= 0.15:
+                    blink_count += 1
+                in_blink = False
+                peak_val = 0.0
+
+    # If the video ended while eye was reopening from a valid blink peak
+    if in_blink and (peak_val - baseline) >= 0.20:
+        blink_count += 1
+
+    # Secondary check: If blendshapes were subtle, check EAR dip
+    if blink_count == 0 and len(ears_logged) >= 6:
+        ear_base = float(np.percentile(ears_logged, 80))
+        ear_min = float(np.min(ears_logged))
+        if (ear_base - ear_min) >= 0.05:
             blink_count = 1
 
     details = {
@@ -169,14 +197,10 @@ def _detect_server_blinks(video_path, target_blinks: int = 2) -> Tuple[str, str,
     if blink_count == 0:
         return "fail", "No eye blinks detected (eyes remained open or static)", details
 
-    # Tolerant count matching:
-    # Liveness checks guard against STATIC photos, masks, and replay screens that cannot blink (0 blinks).
-    # A human blinking more times than requested (e.g. blinking 3, 4, 5 times while following camera cues)
-    # is undeniable proof of physical human presence.
     min_allowed = max(1, target_blinks - 1)
     if blink_count < min_allowed:
         return "fail", f"Expected at least {min_allowed} blinks but detected {blink_count}", details
-    if blink_count > 25:
+    if blink_count > 30:
         return "fail", f"Unnatural flicker frequency ({blink_count} blinks in short window)", details
 
     return "pass", f"Eye blink verified ({blink_count} blinks detected via blendshapes)", details
@@ -430,7 +454,7 @@ def liveness(ctx: CheckContext) -> CheckResult:
             from . import video_deepfake
             frames = video_deepfake.sample_frames(vid_path, n=8) if vid_path else []
             frontal_crops = video_deepfake.face_crops(frames) if frames else []
-            as_res = anti_spoof.evaluate_anti_spoof(selfie_path, frontal_crops)
+            as_res = anti_spoof.evaluate_anti_spoof(selfie_path, frames if frames else frontal_crops)
             per["passive_anti_spoof"] = (as_res["status"], as_res["reason"], as_res)
 
     except ImportError as e:

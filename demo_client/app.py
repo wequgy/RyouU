@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # Ensure unclone_kyc package is importable
-sdk_path = Path(__file__).resolve().parent.parent / "sdk" / "python"
+sdk_path = Path(__file__).resolve().parent.parent / "sdks" / "kyc" / "python"
 if str(sdk_path) not in sys.path:
     sys.path.insert(0, str(sdk_path))
 

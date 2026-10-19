@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from cryptography.fernet import Fernet
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
 
 from . import db
 from .config import get_settings
@@ -122,6 +122,40 @@ def require_tenant(authorization: Optional[str] = Header(default=None)) -> dict:
     if not tenant:
         raise HTTPException(401, "Invalid API key")
     return tenant
+
+
+def require_product(product: str):
+    """Dependency factory ensuring tenant has access to the requested product."""
+    def dep(tenant: dict = Depends(require_tenant)) -> dict:
+        prods = tenant.get("products") or []
+        if product not in prods:
+            raise HTTPException(403, f"Tenant does not have access to '{product}' product. Enabled products: {prods}")
+        return tenant
+    return dep
+
+
+def require_scope(scope: str):
+    """Dependency factory ensuring tenant's API key has the required scope."""
+    def dep(tenant: dict = Depends(require_tenant)) -> dict:
+        scopes = tenant.get("key_scopes") or []
+        has_scope = False
+        for s in scopes:
+            if s == "*" or s == "admin:*":
+                has_scope = True
+                break
+            if s == scope:
+                has_scope = True
+                break
+            if s.endswith(":*") and scope.startswith(s[:-1]):
+                has_scope = True
+                break
+            if scope.endswith(":*") and s.startswith(scope[:-1]):
+                has_scope = True
+                break
+        if not has_scope:
+            raise HTTPException(403, f"API key lacks required scope '{scope}'. Key scopes: {scopes}")
+        return tenant
+    return dep
 
 
 def require_flow(vid: str, x_flow_token: Optional[str] = Header(default=None)) -> dict:

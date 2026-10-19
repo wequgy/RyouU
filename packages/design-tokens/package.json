@@ -1,0 +1,9 @@
+{
+  "name": "@unclone/design-tokens",
+  "version": "1.0.0",
+  "description": "Shared CSS variables and design tokens for Unclone web KYC and live interview overlay",
+  "main": "tokens.css",
+  "style": "tokens.css",
+  "author": "Unclone Team",
+  "license": "Apache-2.0"
+}

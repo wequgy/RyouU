@@ -94,19 +94,24 @@ def main():
     strict = os.environ.get("KYC_STRICT", "1" if s.strict_mode else "0").strip() in ("1", "true", "yes")
 
     print("=" * 75)
-    print(f"RyouU KYC Preflight System Diagnostics [KYC_STRICT={'1' if strict else '0'}]")
+    print(f"Unclone Suite Preflight System Diagnostics [KYC_STRICT={'1' if strict else '0'}]")
     print("=" * 75)
 
-    checks = [
-        ("InsightFace (buffalo_l)", check_insightface),
-        ("MediaPipe Face Landmarker", check_mediapipe_landmarker),
-        ("MiniFASNet (Anti-Spoofing)", check_minifasnet),
-        ("RapidOCR (ID Text)", check_rapidocr),
-        ("Faster-Whisper (ASR)", lambda: check_whisper(s)),
-        ("ViT Deepfake / GenD", check_vit_deepfake),
-        ("SyncNet (Lip-Sync)", check_syncnet),
-        ("Detectif.ai (Voice AI API)", lambda: check_detectif(s)),
-    ]
+    checks = []
+    if s.enable_kyc:
+        checks.extend([
+            ("InsightFace (buffalo_l)", check_insightface),
+            ("MediaPipe Face Landmarker", check_mediapipe_landmarker),
+            ("MiniFASNet (Anti-Spoofing)", check_minifasnet),
+            ("RapidOCR (ID Text)", check_rapidocr),
+            ("Faster-Whisper (ASR)", lambda: check_whisper(s)),
+        ])
+    if s.enable_interview:
+        checks.extend([
+            ("ViT Deepfake / GenD", check_vit_deepfake),
+            ("SyncNet (Lip-Sync)", check_syncnet),
+            ("Detectif.ai (Voice AI API)", lambda: check_detectif(s)),
+        ])
 
     all_passed = True
     for name, fn in checks:

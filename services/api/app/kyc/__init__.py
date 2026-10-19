@@ -1,0 +1,1 @@
+"""KYC product domain module."""

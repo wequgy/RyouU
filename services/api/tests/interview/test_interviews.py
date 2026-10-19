@@ -176,9 +176,10 @@ def test_overlay_security_and_assets():
     assert pkg_path.exists()
     pkg = json.loads(pkg_path.read_text(encoding="utf-8"))
     
-    # Dependencies must be pinned, no wildcard
-    assert pkg.get("devDependencies", {}).get("electron") != "*"
-    assert pkg.get("devDependencies", {}).get("electron").startswith("^31")
+    # Dependencies must be pinned to exact version (no caret / wildcard)
+    electron_ver = pkg.get("devDependencies", {}).get("electron", "")
+    assert electron_ver != "*" and not electron_ver.startswith("^")
+    assert electron_ver.startswith("31")
     
     # HTML security posture (CSP)
     index_html = (overlay_dir / "src/renderer/index.html").read_text(encoding="utf-8")

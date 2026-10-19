@@ -4,6 +4,7 @@ console.log("[RyouU] Preload initialized with secure context isolation");
 
 contextBridge.exposeInMainWorld("ryouu", {
   // Session & Server Communication
+  getLaunchSession: () => ipcRenderer.invoke("interview:get-launch-session"),
   connectInterview: (options) => ipcRenderer.invoke("interview:connect", options),
   uploadClip: (payload) => ipcRenderer.invoke("interview:upload-clip", payload),
   getSummary: () => ipcRenderer.invoke("interview:get-summary"),

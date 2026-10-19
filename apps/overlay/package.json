@@ -1,23 +1,24 @@
 {
-  "name": "ryouu-overlay",
+  "name": "unclone-overlay",
   "version": "1.0.0",
-  "description": "RyouU Real-Time Interview Integrity Monitoring Overlay",
+  "description": "Unclone Real-Time Interview Integrity Monitoring Overlay",
   "main": "src/main/main.js",
-  "author": "RyouU Team",
+  "author": "Unclone Team",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "test": "node --test tests/*.test.js"
   },
   "type": "commonjs",
   "devDependencies": {
-    "electron": "^31.3.0",
-    "electron-builder": "^24.13.3"
+    "electron": "31.3.0",
+    "electron-builder": "24.13.3"
   },
   "build": {
-    "appId": "com.ryouu.overlay",
-    "productName": "RyouU Overlay",
+    "appId": "com.unclone.overlay",
+    "productName": "Unclone Overlay",
     "directories": {
       "output": "dist"
     },

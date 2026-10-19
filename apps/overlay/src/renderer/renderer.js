@@ -3,46 +3,48 @@
  * Displays verified signals from the 7 backend checks only.
  */
 
-// DOM Elements
-const fullPanel = document.getElementById("fullPanel");
-const compactPill = document.getElementById("compactPill");
-const compactStatusBadge = document.getElementById("compactStatusBadge");
-const compactStatusText = document.getElementById("compactStatusText");
-const compactAppText = document.getElementById("compactAppText");
-const compactExpandBtn = document.getElementById("compactExpandBtn");
-const minimizeBtn = document.getElementById("minimizeBtn");
-const closeBtn = document.getElementById("closeBtn");
+// DOM Elements helper
+const getEl = (id) => (typeof document !== "undefined" ? document.getElementById(id) : null);
 
-const meetingAppName = document.getElementById("meetingAppName");
-const selectRegionBtn = document.getElementById("selectRegionBtn");
-const regionBtnText = document.getElementById("regionBtnText");
-const recordOnceBtn = document.getElementById("recordOnceBtn");
-const recordBtnText = document.getElementById("recordBtnText");
-const autoMonitorBtn = document.getElementById("autoMonitorBtn");
-const autoMonitorIcon = document.getElementById("autoMonitorIcon");
-const autoMonitorBtnText = document.getElementById("autoMonitorBtnText");
-const exportReportBtn = document.getElementById("exportReportBtn");
+const fullPanel = getEl("fullPanel");
+const compactPill = getEl("compactPill");
+const compactStatusBadge = getEl("compactStatusBadge");
+const compactStatusText = getEl("compactStatusText");
+const compactAppText = getEl("compactAppText");
+const compactExpandBtn = getEl("compactExpandBtn");
+const minimizeBtn = getEl("minimizeBtn");
+const closeBtn = getEl("closeBtn");
 
-const cropCanvas = document.getElementById("cropCanvas");
-const cropCtx = cropCanvas.getContext("2d", { willReadFrequently: true });
-const captureVideo = document.getElementById("captureVideo");
-const videoPlaceholder = document.getElementById("videoPlaceholder");
-const signalDetectedTooltip = document.getElementById("signalDetectedTooltip");
-const signalTooltipText = document.getElementById("signalTooltipText");
+const meetingAppName = getEl("meetingAppName");
+const selectRegionBtn = getEl("selectRegionBtn");
+const regionBtnText = getEl("regionBtnText");
+const recordOnceBtn = getEl("recordOnceBtn");
+const recordBtnText = getEl("recordBtnText");
+const autoMonitorBtn = getEl("autoMonitorBtn");
+const autoMonitorIcon = getEl("autoMonitorIcon");
+const autoMonitorBtnText = getEl("autoMonitorBtnText");
+const exportReportBtn = getEl("exportReportBtn");
 
-const timelineProgress = document.getElementById("timelineProgress");
-const timelineTimestamp = document.getElementById("timelineTimestamp");
-const timelineAlertMarker = document.getElementById("timelineAlertMarker");
-const timelinePlayBtn = document.getElementById("timelinePlayBtn");
+const cropCanvas = getEl("cropCanvas");
+const cropCtx = cropCanvas && cropCanvas.getContext ? cropCanvas.getContext("2d", { willReadFrequently: true }) : null;
+const captureVideo = getEl("captureVideo");
+const videoPlaceholder = getEl("videoPlaceholder");
+const signalDetectedTooltip = getEl("signalDetectedTooltip");
+const signalTooltipText = getEl("signalTooltipText");
 
-const sessionOverallPill = document.getElementById("sessionOverallPill");
-const capsuleAuthVal = document.getElementById("capsuleAuthVal");
-const capsuleNetVal = document.getElementById("capsuleNetVal");
-const recBanner = document.getElementById("recommendationBanner");
-const recIcon = document.getElementById("recIcon");
-const recActionText = document.getElementById("recActionText");
-const timelineChips = document.getElementById("timelineChips");
-const roundsCountLabel = document.getElementById("roundsCountLabel");
+const timelineProgress = getEl("timelineProgress");
+const timelineTimestamp = getEl("timelineTimestamp");
+const timelineAlertMarker = getEl("timelineAlertMarker");
+const timelinePlayBtn = getEl("timelinePlayBtn");
+
+const sessionOverallPill = getEl("sessionOverallPill");
+const capsuleAuthVal = getEl("capsuleAuthVal");
+const capsuleNetVal = getEl("capsuleNetVal");
+const recBanner = getEl("recommendationBanner");
+const recIcon = getEl("recIcon");
+const recActionText = getEl("recActionText");
+const timelineChips = getEl("timelineChips");
+const roundsCountLabel = getEl("roundsCountLabel");
 
 // State
 let isAutoMonitoring = false;
@@ -109,22 +111,40 @@ async function initSession() {
 
 async function attemptConnect() {
   try {
-    const res = await window.ryouu.connectInterview({
-      tenantApiKey: "kyc_demo_lenient_key",
-      candidateId: "candidate-001"
-    });
+    const launchSession = await window.ryouu.getLaunchSession();
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramId = urlParams.get("interview_id") || urlParams.get("id");
+    const paramToken = urlParams.get("token");
+    const paramExpires = urlParams.get("expires_at");
 
-    if (res.success) {
-      console.log("[RyouU] Connected to interview engine:", res.session);
-      capsuleNetVal.textContent = "Connected";
-      capsuleNetVal.className = "capsule-value strong";
-    } else {
-      console.log("[RyouU] Backend starting; scheduling retry in 3s...");
-      setTimeout(attemptConnect, 3000);
+    const sessionPayload = launchSession || (paramId && paramToken ? {
+      interviewId: paramId,
+      token: paramToken,
+      expiresAt: paramExpires ? parseInt(paramExpires) : null
+    } : null);
+
+    if (sessionPayload && sessionPayload.interviewId && sessionPayload.token) {
+      const res = await window.ryouu.connectInterview(sessionPayload);
+      if (res.success) {
+        console.log("[RyouU] Connected to interview engine via scoped interviewer token:", res.session);
+        capsuleNetVal.textContent = "Connected";
+        capsuleNetVal.className = "capsule-value strong";
+        return;
+      } else {
+        console.warn("[RyouU] Session connection failed:", res.error);
+        capsuleNetVal.textContent = "Auth Error";
+        capsuleNetVal.className = "capsule-value warn";
+        return;
+      }
     }
+
+    // No credentials provided yet; overlay waits in ready state
+    capsuleNetVal.textContent = "Awaiting Token";
+    capsuleNetVal.className = "capsule-value";
   } catch (err) {
-    console.log("[RyouU] Connection retry pending...");
-    setTimeout(attemptConnect, 3000);
+    console.log("[RyouU] Waiting for session credentials...", err);
+    capsuleNetVal.textContent = "Awaiting Token";
+    capsuleNetVal.className = "capsule-value";
   }
 }
 
@@ -146,28 +166,32 @@ function setCompactMode(compact) {
   }
 }
 
-minimizeBtn.addEventListener("click", () => setCompactMode(true));
-compactExpandBtn.addEventListener("click", () => setCompactMode(false));
-closeBtn.addEventListener("click", () => window.ryouu.closeApp());
+if (minimizeBtn) minimizeBtn.addEventListener("click", () => setCompactMode(true));
+if (compactExpandBtn) compactExpandBtn.addEventListener("click", () => setCompactMode(false));
+if (closeBtn) closeBtn.addEventListener("click", () => window?.ryouu?.closeApp?.());
 
 // ----------------- Region Selection & Capture Setup -----------------
-selectRegionBtn.addEventListener("click", async () => {
-  regionBtnText.textContent = "Selecting...";
-  await window.ryouu.openCapturePicker();
-});
+if (selectRegionBtn) {
+  selectRegionBtn.addEventListener("click", async () => {
+    if (regionBtnText) regionBtnText.textContent = "Selecting...";
+    await window?.ryouu?.openCapturePicker?.();
+  });
+}
 
-window.ryouu.onRegionSelected((region) => {
-  currentRegion = region;
-  regionBtnText.textContent = `${Math.round(region.width)}x${Math.round(region.height)}`;
-  console.log("[RyouU] Candidate tile selected:", region);
-  setupMediaStreams();
-});
+if (typeof window !== "undefined" && window.ryouu) {
+  window.ryouu.onRegionSelected?.((region) => {
+    currentRegion = region;
+    if (regionBtnText) regionBtnText.textContent = `${Math.round(region.width)}x${Math.round(region.height)}`;
+    console.log("[Unclone] Candidate tile selected:", region);
+    setupMediaStreams();
+  });
 
-window.ryouu.onMeetingAppDetected((data) => {
-  if (data && data.app) {
-    updateMeetingApp(data.app);
-  }
-});
+  window.ryouu.onMeetingAppDetected?.((data) => {
+    if (data && data.app) {
+      updateMeetingApp(data.app);
+    }
+  });
+}
 
 async function setupMediaStreams() {
   try {
@@ -449,14 +473,57 @@ async function recordAndAnalyzeClip() {
   }
 }
 
+function computeEffectiveRecommendation(rawRec, checks) {
+  const checkList = Array.isArray(checks) ? checks : [];
+  if (checkList.length === 0) return "idle";
+
+  const hasFlagged = checkList.some((c) => {
+    const s = (c.status || "").toLowerCase();
+    return s === "flagged" || s === "fail";
+  });
+  if (hasFlagged) return "flagged";
+
+  const hasCaution = checkList.some((c) => {
+    const s = (c.status || "").toLowerCase();
+    return s === "caution" || s === "review_recommended";
+  });
+  if (hasCaution) return "caution";
+
+  const anyIncompleteOrNotEnrolled = checkList.some((c) => {
+    const s = (c.status || "").toLowerCase();
+    const r = (c.reason || "").toLowerCase();
+    return (
+      s === "idle" ||
+      s === "unavailable" ||
+      s === "uncertain" ||
+      r.includes("not enrolled") ||
+      r.includes("no kyc baseline") ||
+      r.includes("unavailable") ||
+      r.includes("idle")
+    );
+  });
+
+  // Strict Rule: Banner is NEVER green when any check is idle, unavailable, uncertain, or not enrolled
+  if (anyIncompleteOrNotEnrolled) {
+    return "idle";
+  }
+
+  return rawRec === "clear" ? "clear" : "idle";
+}
+
 // ----------------- UI Signal Presentation -----------------
 function applyClipResults(clip) {
   sessionHistory.push(clip);
 
-  const rec = clip.overall_recommendation || "clear";
-  const action = clip.interviewer_action || "All biometric and acoustic signals consistent. Continue interview normally.";
+  const checks = Array.isArray(clip.checks) ? clip.checks : [];
+  const rec = computeEffectiveRecommendation(clip.overall_recommendation, checks);
+  const action = clip.interviewer_action || (
+    rec === "clear"
+      ? "All biometric and acoustic signals consistent. Continue interview normally."
+      : "Some integrity checks are idle, uncalibrated or not enrolled. Ongoing monitoring active."
+  );
 
-  // 1. Update Callout Guidance Banner
+  // 1. Update Callout Guidance Banner (Never green when idle/unavailable/not enrolled)
   recBanner.className = `recommendation-callout ${rec}`;
   recActionText.textContent = action;
 
@@ -488,7 +555,7 @@ function applyClipResults(clip) {
     timelineAlertMarker.classList.remove("hidden");
     signalDetectedTooltip.classList.remove("hidden");
     signalTooltipText.textContent = "Review Recommended";
-  } else {
+  } else if (rec === "clear") {
     recIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>';
     sessionOverallPill.className = "session-status-pill clear";
     sessionOverallPill.textContent = "ALL CLEAR";
@@ -497,6 +564,19 @@ function applyClipResults(clip) {
 
     compactStatusBadge.className = "pill-status-capsule";
     compactStatusText.textContent = "ALL SIGNALS CLEAR";
+
+    timelineAlertMarker.classList.add("hidden");
+    signalDetectedTooltip.classList.add("hidden");
+  } else {
+    // rec === "idle" / uncalibrated / incomplete coverage: Never green!
+    recIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+    sessionOverallPill.className = "session-status-pill idle";
+    sessionOverallPill.textContent = "MONITORING ACTIVE";
+    capsuleAuthVal.textContent = "Partial Coverage";
+    capsuleAuthVal.className = "capsule-value";
+
+    compactStatusBadge.className = "pill-status-capsule";
+    compactStatusText.textContent = "MONITORING ACTIVE";
 
     timelineAlertMarker.classList.add("hidden");
     signalDetectedTooltip.classList.add("hidden");
@@ -615,37 +695,44 @@ function appendRoundChip(clip) {
 }
 
 // ----------------- Controls -----------------
-autoMonitorBtn.addEventListener("click", () => {
-  if (isAutoMonitoring) {
-    isAutoMonitoring = false;
-    if (autoIntervalTimer) clearInterval(autoIntervalTimer);
-    autoMonitorBtn.classList.remove("active");
-    autoMonitorIcon.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
-    autoMonitorBtnText.textContent = "Auto-Monitor";
-  } else {
-    isAutoMonitoring = true;
-    autoMonitorBtn.classList.add("active");
-    autoMonitorIcon.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
-    autoMonitorBtnText.textContent = "Pause Auto";
+if (autoMonitorBtn) {
+  autoMonitorBtn.addEventListener("click", () => {
+    if (isAutoMonitoring) {
+      isAutoMonitoring = false;
+      if (autoIntervalTimer) clearInterval(autoIntervalTimer);
+      autoMonitorBtn.classList.remove("active");
+      if (autoMonitorIcon) autoMonitorIcon.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+      if (autoMonitorBtnText) autoMonitorBtnText.textContent = "Auto-Monitor";
+    } else {
+      isAutoMonitoring = true;
+      autoMonitorBtn.classList.add("active");
+      if (autoMonitorIcon) autoMonitorIcon.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+      if (autoMonitorBtnText) autoMonitorBtnText.textContent = "Pause Auto";
+      recordAndAnalyzeClip();
+      autoIntervalTimer = setInterval(() => {
+        if (isAutoMonitoring && !isRecording) {
+          recordAndAnalyzeClip();
+        }
+      }, AUTO_MONITOR_INTERVAL_MS);
+    }
+  });
+}
+
+if (recordOnceBtn) {
+  recordOnceBtn.addEventListener("click", () => {
     recordAndAnalyzeClip();
-    autoIntervalTimer = setInterval(() => {
-      if (isAutoMonitoring && !isRecording) {
-        recordAndAnalyzeClip();
-      }
-    }, AUTO_MONITOR_INTERVAL_MS);
-  }
-});
+  });
+}
 
-recordOnceBtn.addEventListener("click", () => {
-  recordAndAnalyzeClip();
-});
-
-timelinePlayBtn.addEventListener("click", () => {
-  recordAndAnalyzeClip();
-});
+if (timelinePlayBtn) {
+  timelinePlayBtn.addEventListener("click", () => {
+    recordAndAnalyzeClip();
+  });
+}
 
 // Export Printable Report
-exportReportBtn.addEventListener("click", () => {
+if (exportReportBtn) {
+  exportReportBtn.addEventListener("click", () => {
   if (sessionHistory.length === 0) {
     alert("No interview rounds recorded yet to export.");
     return;
@@ -667,7 +754,7 @@ exportReportBtn.addEventListener("click", () => {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>RyouU Integrity Report</title>
+      <title>Unclone Integrity Report</title>
       <style>
         body { font-family: -apple-system, sans-serif; padding: 40px; background: #fafafa; color: #1e293b; }
         .card { max-width: 800px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; }
@@ -678,7 +765,7 @@ exportReportBtn.addEventListener("click", () => {
     </head>
     <body>
       <div class="card">
-        <h1>RyouU Live Interview Integrity Report</h1>
+        <h1>Unclone Live Interview Integrity Report</h1>
         <p style="color: #64748b; font-size: 14px;">Date: ${dateStr} | Total Rounds: ${sessionHistory.length}</p>
         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;"/>
         ${rows}
@@ -690,6 +777,15 @@ exportReportBtn.addEventListener("click", () => {
   const blob = new Blob([reportHtml], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank");
-});
+  });
+}
 
-window.addEventListener("DOMContentLoaded", initSession);
+if (typeof window !== "undefined") {
+  window.addEventListener("DOMContentLoaded", initSession);
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    computeEffectiveRecommendation,
+  };
+}

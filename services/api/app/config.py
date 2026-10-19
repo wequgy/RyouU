@@ -60,6 +60,8 @@ class Settings:
     focus_loss_review_count: int
     enforce_gates: bool
     strict_mode: bool
+    enable_kyc: bool
+    enable_interview: bool
 
 
 def get_settings() -> Settings:
@@ -106,4 +108,6 @@ def get_settings() -> Settings:
         max_upload_mb=int(_num("MAX_UPLOAD_MB", 20)),
         focus_loss_review_count=int(_num("FOCUS_LOSS_REVIEW_COUNT", 3)),
         enforce_gates=_flag("KYC_ENFORCE_GATES", True),
+        enable_kyc=_flag("ENABLE_KYC", True),
+        enable_interview=_flag("ENABLE_INTERVIEW", True),
     )

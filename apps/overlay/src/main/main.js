@@ -286,68 +286,110 @@ function decryptSecret(ciphertext) {
   }
 }
 
+let refreshTimer = null;
+
+function scheduleTokenRefresh(sessionData) {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+  if (!sessionData || !sessionData.expiresAt || !sessionData.id) return;
+  const now = Date.now() / 1000;
+  const timeRemaining = sessionData.expiresAt - now;
+  // Refresh 2 minutes before expiry, or at 70% of remaining lifespan
+  const refreshDelaySec = Math.max(5, Math.min(timeRemaining - 120, timeRemaining * 0.7));
+  log(`Scheduling interviewer token refresh in ${Math.round(refreshDelaySec)}s`);
+
+  refreshTimer = setTimeout(async () => {
+    try {
+      if (!activeSession || !activeSession.encryptedToken) return;
+      const currentToken = decryptSecret(activeSession.encryptedToken);
+      const res = await fetch(`${activeSession.backendUrl}/v1/interviews/${activeSession.id}/refresh`, {
+        method: "POST",
+        headers: { "X-Interview-Token": currentToken }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        activeSession.token = data.token;
+        activeSession.encryptedToken = encryptSecret(data.token);
+        activeSession.expiresAt = data.expires_at;
+        log("Interviewer token refreshed successfully via safeStorage", { expiresAt: data.expires_at });
+        scheduleTokenRefresh(activeSession);
+      } else {
+        log("Failed to refresh interviewer token", res.status);
+      }
+    } catch (e) {
+      log("Error during token refresh", e.message);
+    }
+  }, refreshDelaySec * 1000);
+}
+
+function parseLaunchSession() {
+  const args = process.argv;
+  let interviewId = process.env.INTERVIEW_ID || "";
+  let token = process.env.INTERVIEW_TOKEN || "";
+  let expiresAt = process.env.INTERVIEW_EXPIRES_AT ? parseInt(process.env.INTERVIEW_EXPIRES_AT) : null;
+  let backendUrl = process.env.KYC_BACKEND_URL || DEFAULT_SERVER_URL;
+
+  for (const arg of args) {
+    if (arg.startsWith("--interview-id=")) interviewId = arg.split("=")[1];
+    if (arg.startsWith("--token=")) token = arg.split("=")[1];
+    if (arg.startsWith("--expires-at=")) expiresAt = parseInt(arg.split("=")[1]);
+    if (arg.startsWith("--backend-url=")) backendUrl = arg.split("=")[1];
+  }
+
+  if (interviewId && token) {
+    return { interviewId, token, expiresAt, backendUrl };
+  }
+  return null;
+}
+
+ipcMain.handle("interview:get-launch-session", () => {
+  return parseLaunchSession();
+});
+
 ipcMain.handle("interview:connect", async (_event, options) => {
+  if (!options) {
+    return { success: false, error: "Missing connection options." };
+  }
+
+  if (options.apiKey || options.api_key) {
+    throw new Error("Security policy violation: Customer API keys are strictly forbidden on desktop clients.");
+  }
+
   const backendUrl = (options.backendUrl || DEFAULT_SERVER_URL).replace(/\/$/, "");
-  const candidateId = options.candidateId || "candidate-001";
+  const interviewId = options.interviewId || options.interview_id;
+  const token = options.token;
+  const expiresAt = options.expiresAt || options.expires_at;
+  const candidateId = options.candidateId || options.candidate_id || "candidate-001";
+
+  if (!interviewId || !token) {
+    return { success: false, error: "Interviewer credentials required: { interview_id, token, expires_at }" };
+  }
 
   try {
-    // If tenant API key provided, create session on server
-    if (options.tenantApiKey) {
-      const res = await fetch(`${backendUrl}/v1/interviews`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${options.tenantApiKey}`
-        },
-        body: JSON.stringify({
-          candidate_id: candidateId,
-          metadata: { meeting_app: detectedMeetingApp, client: "ryouu-desktop-overlay" }
-        })
-      });
+    // Verify connection by fetching summary using scoped interviewer token
+    const verifyRes = await fetch(`${backendUrl}/v1/interviews/${interviewId}/summary`, {
+      headers: { "X-Interview-Token": token }
+    });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Failed to create interview session: ${res.status} ${errText}`);
-      }
-
-      const data = await res.json();
-      activeSession = {
-        id: data.id,
-        token: data.token,
-        encryptedToken: encryptSecret(data.token),
-        backendUrl,
-        candidateId: data.candidate_id,
-        expiresAt: data.expires_at
-      };
-
-      log("Interview session connected via tenant key", { id: data.id });
-      return { success: true, session: { id: data.id, candidateId: data.candidate_id, backendUrl } };
+    if (!verifyRes.ok) {
+      throw new Error(`Interview token invalid or session expired: ${verifyRes.status}`);
     }
 
-    // Connect with pre-issued interview ID and token
-    if (options.interviewId && options.token) {
-      activeSession = {
-        id: options.interviewId,
-        token: options.token,
-        encryptedToken: encryptSecret(options.token),
-        backendUrl,
-        candidateId
-      };
+    const summary = await verifyRes.json();
+    activeSession = {
+      id: interviewId,
+      token,
+      encryptedToken: encryptSecret(token),
+      backendUrl,
+      candidateId: summary.candidate_id || candidateId,
+      expiresAt: expiresAt || (Date.now() / 1000 + 3600)
+    };
 
-      // Verify connection by fetching summary
-      const verifyRes = await fetch(`${backendUrl}/v1/interviews/${options.interviewId}/summary`, {
-        headers: { "X-Interview-Token": options.token }
-      });
-
-      if (!verifyRes.ok) {
-        throw new Error(`Interview token invalid or session expired: ${verifyRes.status}`);
-      }
-
-      const summary = await verifyRes.json();
-      return { success: true, session: { id: options.interviewId, candidateId: summary.candidate_id, backendUrl } };
-    }
-
-    throw new Error("Either tenantApiKey or (interviewId + token) must be provided");
+    scheduleTokenRefresh(activeSession);
+    log("Interview session connected via scoped interviewer token", { id: interviewId });
+    return { success: true, session: { id: interviewId, candidateId: activeSession.candidateId, backendUrl } };
   } catch (error) {
     log("Connection error:", error.message);
     return { success: false, error: error.message };

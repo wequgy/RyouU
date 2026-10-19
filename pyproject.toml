@@ -3,15 +3,15 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "unclone-kyc-service"
+name = "unclone-suite"
 version = "0.1.0"
-description = "Multi-tenant identity verification service with AI fraud checks"
+description = "Multi-tenant identity verification & interview integrity monitoring suite"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
-    "python-dotenv>=1.0.1",
+    "python-dotenv>=1.0.0",
     "httpx>=0.27.0",
     "python-multipart>=0.0.9",
     "pydantic>=2.6.4",
@@ -19,26 +19,45 @@ dependencies = [
     "dateparser>=1.2.0",
     "numpy>=1.26.4",
     "cryptography>=42.0.0",
+    "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]
+kyc = [
+    "insightface>=0.7.3",
+    "onnxruntime>=1.17.0",
+    "opencv-python-headless>=4.9.0",
+    "mediapipe>=0.10.0",
+    "pillow>=10.0.0",
+    "faster-whisper>=1.0.0",
+    "rapidocr-onnxruntime>=1.4.0",
+]
+interview = [
+    "torch>=2.0.0",
+    "transformers>=4.35.0",
+    "av>=11.0.0",
+    "soundfile>=0.12.0",
+    "syncnet-python>=0.2.0",
+    "scenedetect>=0.6.0",
+    "scipy>=1.11.0",
+    "opencv-python-headless>=4.9.0",
+    "pillow>=10.0.0",
+]
+postgres = [
+    "psycopg[binary]>=3.1.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "ruff>=0.3.0",
 ]
-ml = [
-    "insightface>=0.7.3",
-    "onnxruntime>=1.17.0",
-    "opencv-python-headless>=4.9.0",
-    "faster-whisper>=1.0.0",
-]
-postgres = [
-    "psycopg[binary]>=3.1.0",
+all = [
+    "unclone-suite[kyc,interview,postgres,dev]",
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["services/api/tests", "tests"]
+pythonpath = ["services/api", "sdks/kyc/python", "."]
 python_files = ["test_*.py"]
 
 [tool.ruff]

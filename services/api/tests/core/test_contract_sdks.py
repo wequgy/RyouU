@@ -9,14 +9,22 @@ import pytest
 import httpx
 from starlette.testclient import TestClient
 
-from app.main import app
-from sdk.python.unclone_kyc import (
-    Client,
-    AuthenticationError,
-    NotFoundError,
-    VerificationSession,
-    VerificationResult,
-)
+try:
+    from unclone_kyc import (
+        Client,
+        AuthenticationError,
+        NotFoundError,
+        VerificationSession,
+        VerificationResult,
+    )
+except ImportError:
+    from sdks.kyc.python.unclone_kyc import (
+        Client,
+        AuthenticationError,
+        NotFoundError,
+        VerificationSession,
+        VerificationResult,
+    )
 
 
 @pytest.fixture
@@ -91,8 +99,10 @@ def test_python_sdk_webhook_contract():
     from app import security
     sig = security.sign_payload(secret, raw_payload)
 
-    # Verify SDK parses and validates HMAC signature identical to server
-    from sdk.python.unclone_kyc import verify_webhook
+    try:
+        from unclone_kyc import verify_webhook
+    except ImportError:
+        from sdks.kyc.python.unclone_kyc import verify_webhook
     parsed = verify_webhook(raw_payload, sig, secret)
     assert parsed["id"] == "ver_test"
     assert parsed["type"] == "verification.completed"

@@ -2319,42 +2319,88 @@
       const canvas = $('camCanvas');
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       canvas.width = 64;
-      canvas.height = 64; // Top 64x32: Forehead, Bottom 64x32: Eyes
+      canvas.height = 64; // Top 64x32: Forehead reference, Bottom 64x32: Eyes
 
       let prevEye = null;
       let prevForehead = null;
       let lastBlinkTime = 0;
-      let blinkPhase = 0; // 0: looking for closure, 1: closed/reopening
+      let blinkPhase = 0; // 0: tracking open eyes, 1: eyelid closing/closed
       let eyeClosedStart = 0;
       let varianceHistory = [];
       const startTime = Date.now();
+
+      function getROIRegions() {
+        const vw = vid.videoWidth || 640;
+        const vh = vid.videoHeight || 480;
+        const cw = window.innerWidth || 360;
+        const ch = window.innerHeight || 800;
+        const hudEl = $('camHudFrame');
+        const hud = hudEl ? hudEl.getBoundingClientRect() : null;
+
+        let faceX, faceY, faceW, faceH;
+
+        if (hud && hud.width > 40 && hud.height > 40) {
+          // Calculate object-fit: cover scaling and letterbox/pillarbox offset
+          const scale = Math.max(cw / vw, ch / vh);
+          const renderedW = vw * scale;
+          const renderedH = vh * scale;
+          const offsetX = (cw - renderedW) / 2;
+          const offsetY = (ch - renderedH) / 2;
+
+          // Video has CSS transform: scaleX(-1) (mirrored)
+          // Screen left: hud.left -> Unmirrored container left: cw - (hud.left + hud.width)
+          const unmirroredLeft = cw - (hud.left + hud.width);
+          const screenTop = hud.top;
+
+          faceX = Math.max(0, Math.min(vw - 20, (unmirroredLeft - offsetX) / scale));
+          faceY = Math.max(0, Math.min(vh - 20, (screenTop - offsetY) / scale));
+          faceW = Math.max(20, Math.min(vw - faceX, hud.width / scale));
+          faceH = Math.max(20, Math.min(vh - faceY, hud.height / scale));
+        } else {
+          // Centered portrait framing
+          faceW = vw * 0.52;
+          faceH = vh * 0.52;
+          faceX = (vw - faceW) / 2;
+          faceY = (vh - faceH) * 0.44;
+        }
+
+        // Forehead: 14% to 27% from top of face bounding box
+        const fx = Math.floor(faceX + faceW * 0.22);
+        const fy = Math.floor(faceY + faceH * 0.14);
+        const fw = Math.floor(faceW * 0.56);
+        const fh = Math.floor(faceH * 0.13);
+
+        // Eyes: 36% to 54% from top of face bounding box
+        const ex = Math.floor(faceX + faceW * 0.14);
+        const ey = Math.floor(faceY + faceH * 0.36);
+        const ew = Math.floor(faceW * 0.72);
+        const eh = Math.floor(faceH * 0.18);
+
+        return {
+          fx: Math.max(0, Math.min(vw - 1, fx)),
+          fy: Math.max(0, Math.min(vh - 1, fy)),
+          fw: Math.max(1, Math.min(vw - fx, fw)),
+          fh: Math.max(1, Math.min(vh - fy, fh)),
+          ex: Math.max(0, Math.min(vw - 1, ex)),
+          ey: Math.max(0, Math.min(vh - 1, ey)),
+          ew: Math.max(1, Math.min(vw - ex, ew)),
+          eh: Math.max(1, Math.min(vh - ey, eh))
+        };
+      }
 
       state.blinkTimer = setInterval(() => {
         if (!vid || vid.readyState < 2 || state.camMode !== 'blink') return;
         try {
           const now = Date.now();
-          // Allow camera exposure, white balance and sensor to stabilize for 1.2s
-          if (now - startTime < 1200) return;
+          // Allow camera exposure, auto-focus and sensor to stabilize for 800ms
+          if (now - startTime < 800) return;
 
-          const vw = vid.videoWidth || 640;
-          const vh = vid.videoHeight || 480;
-
-          // 1. Forehead Reference Region (stationary during blinks, moves on hand/head shake)
-          const fx = Math.floor(vw * 0.25);
-          const fy = Math.floor(vh * 0.12);
-          const fw = Math.floor(vw * 0.50);
-          const fh = Math.floor(vh * 0.12);
-
-          // 2. Eye Region
-          const ex = Math.floor(vw * 0.20);
-          const ey = Math.floor(vh * 0.24);
-          const ew = Math.floor(vw * 0.60);
-          const eh = Math.floor(vh * 0.24);
+          const roi = getROIRegions();
 
           // Draw forehead onto top 64x32
-          ctx.drawImage(vid, fx, fy, fw, fh, 0, 0, 64, 32);
+          ctx.drawImage(vid, roi.fx, roi.fy, roi.fw, roi.fh, 0, 0, 64, 32);
           // Draw eyes onto bottom 64x32
-          ctx.drawImage(vid, ex, ey, ew, eh, 0, 32, 64, 32);
+          ctx.drawImage(vid, roi.ex, roi.ey, roi.ew, roi.eh, 0, 32, 64, 32);
 
           const imgData = ctx.getImageData(0, 0, 64, 64).data;
           const halfN = 64 * 32;
@@ -2397,62 +2443,61 @@
           }
 
           // Build rolling baseline when eyes are stable
-          if (varianceHistory.length < 15) {
+          if (varianceHistory.length < 10) {
             varianceHistory.push(eyeStdDev);
             return;
           }
           const baselineStdDev = varianceHistory.reduce((a, b) => a + b, 0) / varianceHistory.length;
 
-          // Update rolling baseline only when head is relatively still and eyes open
-          if (avgForeheadMotion < 3.0 && blinkPhase === 0) {
+          // Update rolling baseline only when head is steady and eyes are open
+          if (avgForeheadMotion < 3.5 && blinkPhase === 0) {
             varianceHistory.shift();
             varianceHistory.push(eyeStdDev);
           }
 
-          // Eye-specific motion above general head/hand motion
-          const differentialMotion = Math.max(0, avgEyeMotion - (avgForeheadMotion * 1.3));
-          // When eyelids close over high-contrast iris/sclera, texture drops significantly
-          const contrastDrop = (baselineStdDev > 6) ? (baselineStdDev - eyeStdDev) / baselineStdDev : 0;
+          // Differential motion cancels device shaking and hand jitter
+          const differentialMotion = Math.max(0, avgEyeMotion - (avgForeheadMotion * 1.25));
+          // Contrast drops as eyelid covers sclera and pupil with skin
+          const contrastDrop = (baselineStdDev > 5) ? (baselineStdDev - eyeStdDev) / baselineStdDev : 0;
 
-          // Enforce 800ms cooldown after a registered blink
-          if (now - lastBlinkTime < 800) {
+          // Enforce 450ms cooldown between consecutive blinks
+          if (now - lastBlinkTime < 450) {
             blinkPhase = 0;
             return;
           }
 
-          // State Machine:
-          // Phase 0: Eyes are open. Detect genuine downward eyelid closure.
-          // Requires clear eye motion above head movement AND significant loss of eye contrast.
+          // Phase 0: Eyes are open. Detect downward eyelid closure motion
           if (blinkPhase === 0) {
-            const isClosing = (differentialMotion > 4.5 && contrastDrop > 0.14) || 
-                              (differentialMotion > 6.0 && contrastDrop > 0.09);
+            const isClosing = (differentialMotion > 3.2 && contrastDrop > 0.08) ||
+                              (differentialMotion > 4.8 && contrastDrop > 0.04) ||
+                              (differentialMotion > 6.2);
             if (isClosing) {
               blinkPhase = 1;
               eyeClosedStart = now;
             }
           }
-          // Phase 1: Eyes closed. Wait for eyelid reopening.
+          // Phase 1: Eyes closed. Detect eyelid reopening within physiological window (90ms - 550ms)
           else if (blinkPhase === 1) {
             const closedDuration = now - eyeClosedStart;
 
-            // Detect reopening: contrast recovers back close to baseline (> 85% of baseline)
-            const contrastRecovered = contrastDrop < 0.08 || eyeStdDev >= (baselineStdDev * 0.85);
-            const motionDuringOpen = differentialMotion > 2.5;
+            const contrastRecovered = contrastDrop < 0.06 || eyeStdDev >= (baselineStdDev * 0.88);
+            const motionDuringOpen = differentialMotion > 2.0;
 
-            if (closedDuration >= 100 && closedDuration <= 650 && (contrastRecovered || motionDuringOpen)) {
-              // Real human blink completed (100ms - 650ms full cycle)
+            if (closedDuration >= 90 && closedDuration <= 550 && (contrastRecovered || motionDuringOpen)) {
+              // Real physiological blink completed
               blinkPhase = 0;
               lastBlinkTime = now;
+              if (navigator.vibrate) { try { navigator.vibrate(35); } catch (_) {} }
               onBlinkRegistered();
-            } else if (closedDuration > 700) {
-              // Took too long (eyes stayed closed or looking down) -> reset without counting
+            } else if (closedDuration > 600) {
+              // Prolonged closure or looking downward -> reset state
               blinkPhase = 0;
             }
           }
         } catch (e) {
-          console.warn(e);
+          console.warn('Auto blink loop error:', e);
         }
-      }, 40); // 25fps sampling
+      }, 33); // ~30fps sampling
     }
 
     function onBlinkRegistered() {

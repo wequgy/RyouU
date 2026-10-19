@@ -274,8 +274,8 @@ async function setupMediaStreams() {
     // Hide placeholder and show active canvas
     videoPlaceholder.style.display = "none";
     cropCanvas.style.display = "block";
-    cropCanvas.width = currentRegion.width || 1280;
-    cropCanvas.height = currentRegion.height || 720;
+    cropCanvas.width = Math.max(320, Math.round(currentRegion.width || 1280));
+    cropCanvas.height = Math.max(240, Math.round(currentRegion.height || 720));
 
     if (animFrameId) cancelAnimationFrame(animFrameId);
     renderCropLoop();
@@ -289,12 +289,24 @@ async function setupMediaStreams() {
 
 function renderCropLoop() {
   if (captureVideo && captureVideo.readyState >= 2 && currentRegion) {
+    const vw = captureVideo.videoWidth || 1920;
+    const vh = captureVideo.videoHeight || 1080;
+    const sw = window.screen.width || vw;
+    const sh = window.screen.height || vh;
+    const scaleX = vw / sw;
+    const scaleY = vh / sh;
+
+    const srcX = Math.max(0, Math.min(vw - 20, Math.round((currentRegion.x || 0) * scaleX)));
+    const srcY = Math.max(0, Math.min(vh - 20, Math.round((currentRegion.y || 0) * scaleY)));
+    const srcW = Math.max(20, Math.min(vw - srcX, Math.round((currentRegion.width || sw) * scaleX)));
+    const srcH = Math.max(20, Math.min(vh - srcY, Math.round((currentRegion.height || sh) * scaleY)));
+
     cropCtx.drawImage(
       captureVideo,
-      currentRegion.x || 0,
-      currentRegion.y || 0,
-      currentRegion.width || cropCanvas.width,
-      currentRegion.height || cropCanvas.height,
+      srcX,
+      srcY,
+      srcW,
+      srcH,
       0,
       0,
       cropCanvas.width,
@@ -378,10 +390,14 @@ async function recordAndAnalyzeClip() {
       } else {
         // Fallback to getDisplayMedia loopback if captureStream did not include audio
         try {
-          const displayStream = await navigator.mediaDevices.getDisplayMedia({
+          const displayPromise = navigator.mediaDevices.getDisplayMedia({
             video: true,
             audio: true
           });
+          const displayStream = await Promise.race([
+            displayPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Audio loopback timed out")), 1500))
+          ]);
           const aTracks = displayStream.getAudioTracks();
           if (aTracks.length > 0) {
             canvasStream.addTrack(aTracks[0]);
@@ -800,7 +816,11 @@ if (exportReportBtn) {
 }
 
 if (typeof window !== "undefined") {
-  window.addEventListener("DOMContentLoaded", initSession);
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", initSession);
+  } else {
+    initSession();
+  }
 }
 
 if (typeof module !== "undefined" && module.exports) {

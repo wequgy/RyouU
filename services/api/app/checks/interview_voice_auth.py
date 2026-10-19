@@ -72,11 +72,11 @@ def evaluate_interview_voice_auth(audio_path: Optional[Path], interview_id: str,
             service="detectif.ai"
         )
 
-    # 3. Call Detectif /v1/deepfake/detect
+    # 3. Call Detectif /deepfake/detect
     try:
         res = voice_ai._call_detectif(
             "POST",
-            "/v1/deepfake/detect",
+            "/deepfake/detect",
             session_id=interview_id,
             settings=settings,
             path=audio_path
@@ -91,7 +91,8 @@ def evaluate_interview_voice_auth(audio_path: Optional[Path], interview_id: str,
             error=str(e)
         )
 
-    fake_prob = float(res.get("fake_probability", res.get("deepfake_score", 0.0)))
+    result_obj = res.get("result", res)
+    fake_prob = float(result_obj.get("score", result_obj.get("fake_probability", result_obj.get("deepfake_score", 0.0))))
     # Score is TRUST score (1.0 = genuine, 0.0 = fake)
     trust_score = round(max(0.0, min(1.0, 1.0 - fake_prob)), 3)
 

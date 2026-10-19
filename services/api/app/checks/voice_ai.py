@@ -18,7 +18,12 @@ from .base import register
 CLIENT_FACTORY = lambda: httpx.Client(timeout=60)  # noqa: E731  (replaceable in tests)
 
 def _call_detectif(method: str, endpoint: str, session_id: str, settings, path=None, data_payload=None, params=None) -> dict:
-    url = f"{settings.detectif_base_url}{endpoint}"
+    if endpoint.startswith("/v1/"):
+        endpoint = endpoint[3:]
+    base = settings.detectif_base_url.rstrip("/")
+    if not endpoint.startswith("/"):
+        endpoint = "/" + endpoint
+    url = f"{base}{endpoint}"
     headers = {"Authorization": f"Bearer {settings.detectif_api_key}"}
 
     file_bytes = None

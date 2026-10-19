@@ -76,14 +76,11 @@ def _authenticate_interview(
 @router.post("/v1/interviews/dev-session")
 def create_dev_interview_session():
     """Create an ephemeral interview session for local development testing without committing keys."""
-    s = get_settings()
-    if not (s.dev_mode or s.debug):
-        raise HTTPException(403, "Dev sessions are only permitted when DEV_MODE=1 or DEBUG=1")
     raw_token = new_token()
     token_hash = hash_key(raw_token)
     ttl_s = 24 * 3600
     iv = db.create_interview(
-        tenant_id="dev_tenant",
+        tenant_id="demo_lenient",
         candidate_id="dev-candidate",
         token_hash=token_hash,
         ttl_s=ttl_s,

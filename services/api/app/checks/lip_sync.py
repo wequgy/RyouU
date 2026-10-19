@@ -30,6 +30,15 @@ def _load_syncnet_pipeline():
     """Lazy load SyncNetPipeline from syncnet_python."""
     global _PIPELINE
     if _PIPELINE is None:
+        import torch
+        # Ensure torch.load defaults to CPU on non-CUDA machines
+        orig_load = torch.load
+        def safe_load(*args, **kwargs):
+            if not torch.cuda.is_available() and "map_location" not in kwargs:
+                kwargs["map_location"] = torch.device("cpu")
+            return orig_load(*args, **kwargs)
+        torch.load = safe_load
+
         from syncnet_python import SyncNetPipeline
         from syncnet_python.syncnet_pipeline import PipelineConfig
 
@@ -46,7 +55,8 @@ def _load_syncnet_pipeline():
             s3fd_weights=str(S3FD_WEIGHTS_PATH),
             syncnet_weights=str(SYNCNET_WEIGHTS_PATH),
         )
-        _PIPELINE = SyncNetPipeline(cfg)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        _PIPELINE = SyncNetPipeline(cfg, device=device)
     return _PIPELINE
 
 

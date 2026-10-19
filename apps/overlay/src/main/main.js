@@ -28,43 +28,43 @@ function log(message, data) {
 
 // ----------------- Cross-Platform Meeting App Detection -----------------
 function checkMeetingApps() {
-  const platform = process.platform;
-  let cmd = "";
+  return new Promise((resolve) => {
+    const platform = process.platform;
+    let cmd = "";
 
-  if (platform === "win32") {
-    cmd = 'tasklist /FO CSV /NH';
-  } else if (platform === "darwin") {
-    cmd = 'ps -ax -o comm';
-  } else {
-    cmd = 'ps -e -o comm';
-  }
-
-  exec(cmd, { windowsHide: true }, (error, stdout) => {
-    if (error) {
-      log("Meeting app process check failed", error.message);
-      return;
+    if (platform === "win32") {
+      cmd = 'tasklist /FO CSV /NH';
+    } else if (platform === "darwin") {
+      cmd = 'ps -ax -o comm';
+    } else {
+      cmd = 'ps -e -o comm';
     }
 
-    const lower = stdout.toLowerCase();
-    let currentApp = "Manual Tile Selection";
+    exec(cmd, { windowsHide: true }, (error, stdout) => {
+      if (error) {
+        log("Meeting app process check failed", error.message);
+        return resolve(detectedMeetingApp);
+      }
 
-    if (lower.includes("zoom")) {
-      currentApp = "Zoom";
-    } else if (lower.includes("teams") || lower.includes("ms-teams")) {
-      currentApp = "Microsoft Teams";
-    } else if (lower.includes("webex")) {
-      currentApp = "Cisco Webex";
-    } else if (lower.includes("chrome") || lower.includes("firefox") || lower.includes("msedge") || lower.includes("brave")) {
-      currentApp = "Browser Meeting (Meet/Teams)";
-    }
+      const lower = stdout.toLowerCase();
+      let currentApp = "Manual Tile Selection";
 
-    if (currentApp !== detectedMeetingApp) {
+      if (lower.includes("zoom")) {
+        currentApp = "Zoom";
+      } else if (lower.includes("teams") || lower.includes("ms-teams")) {
+        currentApp = "Microsoft Teams";
+      } else if (lower.includes("webex")) {
+        currentApp = "Cisco Webex";
+      } else if (lower.includes("chrome") || lower.includes("firefox") || lower.includes("msedge") || lower.includes("brave")) {
+        currentApp = "Browser Meeting (Meet/Teams)";
+      }
+
       detectedMeetingApp = currentApp;
-      log(`Meeting app detected: ${detectedMeetingApp}`);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("detection:app-status", { app: detectedMeetingApp });
       }
-    }
+      resolve(detectedMeetingApp);
+    });
   });
 }
 
@@ -107,6 +107,13 @@ function createMainWindow() {
 
   mainWindow.webContents.on("console-message", (_event, level, message) => {
     log(`RENDERER [${level}]: ${message}`);
+  });
+
+  mainWindow.webContents.on("did-finish-load", async () => {
+    const app = await checkMeetingApps();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("detection:app-status", { app });
+    }
   });
 
   mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
@@ -176,8 +183,8 @@ ipcMain.handle("window:toggle-compact", async (_event, compact) => {
 });
 
 ipcMain.handle("detection:detect-app", async () => {
-  checkMeetingApps();
-  return { app: detectedMeetingApp };
+  const app = await checkMeetingApps();
+  return { app };
 });
 
 ipcMain.handle("capture:open-picker", async () => {

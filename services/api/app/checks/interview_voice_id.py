@@ -58,11 +58,11 @@ def evaluate_interview_voice_id(
 
     # Round 1: Voice Enrollment
     if round_num <= 1 and not speaker_id:
-        target_spk = f"spk_{interview_id}"
+        target_spk = "".join(c for c in f"spk{interview_id}" if c.isalnum())[:32]
         try:
             res = voice_ai._call_detectif(
                 "POST",
-                "/v1/speakers/enroll",
+                "/speakers/enroll",
                 session_id=interview_id,
                 settings=settings,
                 path=audio_path,
@@ -98,7 +98,7 @@ def evaluate_interview_voice_id(
     try:
         res = voice_ai._call_detectif(
             "POST",
-            "/v1/speakers/verify",
+            "/speakers/verify",
             session_id=interview_id,
             settings=settings,
             path=audio_path,
@@ -114,8 +114,10 @@ def evaluate_interview_voice_id(
             error=str(e)
         ), speaker_id
 
-    match_score = float(res.get("match_score", res.get("similarity", 0.0)))
-    is_match = bool(res.get("match", match_score >= 0.70))
+    result_obj = res.get("result", res)
+    match_score = float(result_obj.get("similarity", result_obj.get("match_score", 0.0)))
+    decision = result_obj.get("decision", "")
+    is_match = bool(decision == "match" or result_obj.get("match", match_score >= 0.70))
 
     if is_match or match_score >= 0.70:
         return CheckResult.passed(

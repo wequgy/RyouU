@@ -493,8 +493,8 @@
     </div>
   </div>
 
-  <!-- Offscreen Capture Video and Stream Elements -->
-  <video id="captureVideo" playsinline autoplay muted style="display:none;"></video>
+  <!-- Offscreen Capture Video and Stream Elements (kept in layout so Chromium decodes frames continuously) -->
+  <video id="captureVideo" playsinline autoplay muted style="position:fixed;top:-9999px;left:-9999px;width:320px;height:240px;opacity:0.01;pointer-events:none;"></video>
   <input type="hidden" id="candidateIdField" value="candidate-001" />
 
   <script src="renderer.js"></script>

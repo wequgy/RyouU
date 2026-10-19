@@ -476,6 +476,11 @@ async function recordAndAnalyzeClip() {
       currentRound += 1;
     } else {
       console.warn("[RyouU] Clip upload notice:", uploadRes.error);
+      if (recActionText) recActionText.textContent = uploadRes.error || "Analysis error";
+      if (capsuleNetVal) {
+        capsuleNetVal.textContent = "Upload Error";
+        capsuleNetVal.className = "capsule-value warn";
+      }
     }
   } catch (err) {
     console.error("Recording error:", err);

@@ -344,8 +344,22 @@ function parseLaunchSession() {
   return null;
 }
 
-ipcMain.handle("interview:get-launch-session", () => {
-  return parseLaunchSession();
+ipcMain.handle("interview:get-launch-session", async () => {
+  const explicit = parseLaunchSession();
+  if (explicit) return explicit;
+  try {
+    const devRes = await fetch(`${DEFAULT_SERVER_URL}/v1/interviews/dev-session`, { method: "POST" });
+    if (devRes.ok) {
+      const devData = await devRes.json();
+      return {
+        interviewId: devData.interview_id,
+        token: devData.token,
+        expiresAt: devData.expires_at,
+        backendUrl: DEFAULT_SERVER_URL
+      };
+    }
+  } catch (_) {}
+  return null;
 });
 
 ipcMain.handle("interview:connect", async (_event, options) => {
@@ -397,6 +411,27 @@ ipcMain.handle("interview:connect", async (_event, options) => {
 });
 
 ipcMain.handle("interview:upload-clip", async (_event, payload) => {
+  if (!activeSession) {
+    try {
+      const devRes = await fetch(`${DEFAULT_SERVER_URL}/v1/interviews/dev-session`, { method: "POST" });
+      if (devRes.ok) {
+        const devData = await devRes.json();
+        activeSession = {
+          id: devData.interview_id,
+          token: devData.token,
+          encryptedToken: encryptSecret(devData.token),
+          backendUrl: DEFAULT_SERVER_URL,
+          candidateId: devData.candidate_id || "dev-candidate",
+          expiresAt: devData.expires_at || (Date.now() / 1000 + 3600)
+        };
+        scheduleTokenRefresh(activeSession);
+        log("Auto-connected dev interview session for clip upload", { id: activeSession.id });
+      }
+    } catch (e) {
+      log("Dev session connection attempt notice:", e.message);
+    }
+  }
+
   if (!activeSession) {
     return { success: false, error: "No active interview session connected." };
   }

@@ -1365,9 +1365,6 @@
         <div class="blink-pill" id="bp1"><span class="bp-dot"></span> Blink 1</div>
         <div class="blink-pill" id="bp2"><span class="bp-dot"></span> Blink 2</div>
       </div>
-      <button class="btn btn-secondary hidden" id="blinkManualDoneBtn" style="width:auto;padding:8px 20px;font-size:13px;margin:8px auto;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:9999px;cursor:pointer" onclick="manualBlinkDone()">
-        ⚡ I've Blinked (Continue)
-      </button>
 
       <div class="cam-instructions-headline" id="camHeadline">Align your face in the middle</div>
       <div class="cam-instructions-sub" id="camSubline">Make sure your face is inside the box and capture a photo</div>
@@ -2277,27 +2274,8 @@
       // Start background challenge video recorder
       startChallengeVideoRecording();
 
-      // Reveal manual continue button after 3.5s as fallback
-      setTimeout(() => {
-        if (state.camMode === 'blink' && state.blinksDetected < 2) {
-          const mb = $('blinkManualDoneBtn');
-          if (mb) mb.classList.remove('hidden');
-        }
-      }, 3500);
-
       // Launch real-time client-side auto blink detector
       startClientSideAutoBlink();
-    }
-
-    function manualBlinkDone() {
-      const mb = $('blinkManualDoneBtn');
-      if (mb) mb.classList.add('hidden');
-      state.blinksDetected = 2;
-      $('bp1').className = 'blink-pill active';
-      $('bp1').innerHTML = SVGS.check + ' Blink 1';
-      $('bp2').className = 'blink-pill active';
-      $('bp2').innerHTML = SVGS.check + ' Blink 2';
-      onBlinkRegistered();
     }
 
     function startChallengeVideoRecording() {
@@ -2319,14 +2297,18 @@
       const canvas = $('camCanvas');
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       canvas.width = 64;
-      canvas.height = 64; // Top 64x32: Forehead reference, Bottom 64x32: Eyes
+      canvas.height = 64;
 
-      let prevEye = null;
-      let prevForehead = null;
       let lastBlinkTime = 0;
       let blinkPhase = 0; // 0: tracking open eyes, 1: eyelid closing/closed
       let eyeClosedStart = 0;
-      let varianceHistory = [];
+      let baselineHistoryL = [];
+      let baselineHistoryR = [];
+      let baselineP10HistoryL = [];
+      let baselineP10HistoryR = [];
+      let prevForehead = null;
+      let maxDepthReachedL = 0;
+      let maxDepthReachedR = 0;
       const startTime = Date.now();
 
       function getROIRegions() {
@@ -2340,15 +2322,12 @@
         let faceX, faceY, faceW, faceH;
 
         if (hud && hud.width > 40 && hud.height > 40) {
-          // Calculate object-fit: cover scaling and letterbox/pillarbox offset
           const scale = Math.max(cw / vw, ch / vh);
           const renderedW = vw * scale;
           const renderedH = vh * scale;
           const offsetX = (cw - renderedW) / 2;
           const offsetY = (ch - renderedH) / 2;
 
-          // Video has CSS transform: scaleX(-1) (mirrored)
-          // Screen left: hud.left -> Unmirrored container left: cw - (hud.left + hud.width)
           const unmirroredLeft = cw - (hud.left + hud.width);
           const screenTop = hud.top;
 
@@ -2357,147 +2336,187 @@
           faceW = Math.max(20, Math.min(vw - faceX, hud.width / scale));
           faceH = Math.max(20, Math.min(vh - faceY, hud.height / scale));
         } else {
-          // Centered portrait framing
           faceW = vw * 0.52;
           faceH = vh * 0.52;
           faceX = (vw - faceW) / 2;
           faceY = (vh - faceH) * 0.44;
         }
 
-        // Forehead: 14% to 27% from top of face bounding box
+        // Forehead reference
         const fx = Math.floor(faceX + faceW * 0.22);
         const fy = Math.floor(faceY + faceH * 0.14);
         const fw = Math.floor(faceW * 0.56);
         const fh = Math.floor(faceH * 0.13);
 
-        // Eyes: 36% to 54% from top of face bounding box
-        const ex = Math.floor(faceX + faceW * 0.14);
-        const ey = Math.floor(faceY + faceH * 0.36);
-        const ew = Math.floor(faceW * 0.72);
-        const eh = Math.floor(faceH * 0.18);
+        // Left Eye: 16% to 46% of face width
+        const lx = Math.floor(faceX + faceW * 0.16);
+        const ly = Math.floor(faceY + faceH * 0.36);
+        const lw = Math.floor(faceW * 0.30);
+        const lh = Math.floor(faceH * 0.18);
+
+        // Right Eye: 54% to 84% of face width
+        const rx = Math.floor(faceX + faceW * 0.54);
+        const ry = Math.floor(faceY + faceH * 0.36);
+        const rw = Math.floor(faceW * 0.30);
+        const rh = Math.floor(faceH * 0.18);
 
         return {
           fx: Math.max(0, Math.min(vw - 1, fx)),
           fy: Math.max(0, Math.min(vh - 1, fy)),
           fw: Math.max(1, Math.min(vw - fx, fw)),
           fh: Math.max(1, Math.min(vh - fy, fh)),
-          ex: Math.max(0, Math.min(vw - 1, ex)),
-          ey: Math.max(0, Math.min(vh - 1, ey)),
-          ew: Math.max(1, Math.min(vw - ex, ew)),
-          eh: Math.max(1, Math.min(vh - ey, eh))
+          lx: Math.max(0, Math.min(vw - 1, lx)),
+          ly: Math.max(0, Math.min(vh - 1, ly)),
+          lw: Math.max(1, Math.min(vw - lx, lw)),
+          lh: Math.max(1, Math.min(vh - ly, lh)),
+          rx: Math.max(0, Math.min(vw - 1, rx)),
+          ry: Math.max(0, Math.min(vh - 1, ry)),
+          rw: Math.max(1, Math.min(vw - rx, rw)),
+          rh: Math.max(1, Math.min(vh - ry, rh))
         };
+      }
+
+      function computePatchStats(imgData, startX, startY, width, height) {
+        let sum = 0, sumSq = 0;
+        const total = width * height;
+        const vals = [];
+        for (let y = startY; y < startY + height; y++) {
+          for (let x = startX; x < startX + width; x++) {
+            const idx = (y * 64 + x) * 4;
+            const gray = 0.299 * imgData[idx] + 0.587 * imgData[idx + 1] + 0.114 * imgData[idx + 2];
+            sum += gray;
+            sumSq += gray * gray;
+            vals.push(gray);
+          }
+        }
+        const mean = sum / total;
+        const variance = Math.max(0, (sumSq / total) - (mean * mean));
+        const stdDev = Math.sqrt(variance);
+        vals.sort((a, b) => a - b);
+        const p10 = vals[Math.floor(total * 0.10)];
+        return { mean, stdDev, p10 };
       }
 
       state.blinkTimer = setInterval(() => {
         if (!vid || vid.readyState < 2 || state.camMode !== 'blink') return;
         try {
           const now = Date.now();
-          // Allow camera exposure, auto-focus and sensor to stabilize for 800ms
-          if (now - startTime < 800) return;
+          // Allow camera exposure, auto-focus and sensor to stabilize for 1.2s
+          if (now - startTime < 1200) return;
 
           const roi = getROIRegions();
 
-          // Draw forehead onto top 64x32
-          ctx.drawImage(vid, roi.fx, roi.fy, roi.fw, roi.fh, 0, 0, 64, 32);
-          // Draw eyes onto bottom 64x32
-          ctx.drawImage(vid, roi.ex, roi.ey, roi.ew, roi.eh, 0, 32, 64, 32);
+          // Draw forehead onto top 64x20
+          ctx.drawImage(vid, roi.fx, roi.fy, roi.fw, roi.fh, 0, 0, 64, 20);
+          // Draw left eye onto bottom-left 30x30
+          ctx.drawImage(vid, roi.lx, roi.ly, roi.lw, roi.lh, 0, 24, 30, 30);
+          // Draw right eye onto bottom-right 30x30
+          ctx.drawImage(vid, roi.rx, roi.ry, roi.rw, roi.rh, 34, 24, 30, 30);
 
           const imgData = ctx.getImageData(0, 0, 64, 64).data;
-          const halfN = 64 * 32;
 
+          // Check forehead motion to reject violent head shakes
           let fMotion = 0;
-          let eMotion = 0;
-          let eyeSum = 0;
-          let eyeSumSq = 0;
-
-          // Forehead analysis
-          for (let i = 0; i < halfN; i++) {
+          const fTotal = 64 * 20;
+          for (let i = 0; i < fTotal; i++) {
             const pi = i * 4;
             const gray = (0.299 * imgData[pi] + 0.587 * imgData[pi+1] + 0.114 * imgData[pi+2]);
             if (prevForehead) fMotion += Math.abs(gray - prevForehead[i]);
           }
-          const avgForeheadMotion = prevForehead ? (fMotion / halfN) : 0;
-
-          // Eye analysis
-          for (let i = 0; i < halfN; i++) {
-            const pi = (halfN + i) * 4;
-            const gray = (0.299 * imgData[pi] + 0.587 * imgData[pi+1] + 0.114 * imgData[pi+2]);
-            eyeSum += gray;
-            eyeSumSq += gray * gray;
-            if (prevEye) eMotion += Math.abs(gray - prevEye[i]);
-          }
-          const avgEyeMotion = prevEye ? (eMotion / halfN) : 0;
-
-          const eyeMean = eyeSum / halfN;
-          const eyeVariance = (eyeSumSq / halfN) - (eyeMean * eyeMean);
-          const eyeStdDev = Math.sqrt(Math.max(0, eyeVariance));
-
-          if (!prevForehead) prevForehead = new Float32Array(halfN);
-          if (!prevEye) prevEye = new Float32Array(halfN);
-
-          for (let i = 0; i < halfN; i++) {
-            const fpi = i * 4;
-            prevForehead[i] = (0.299 * imgData[fpi] + 0.587 * imgData[fpi+1] + 0.114 * imgData[fpi+2]);
-            const epi = (halfN + i) * 4;
-            prevEye[i] = (0.299 * imgData[epi] + 0.587 * imgData[epi+1] + 0.114 * imgData[epi+2]);
+          const avgFMotion = prevForehead ? (fMotion / fTotal) : 0;
+          if (!prevForehead) prevForehead = new Float32Array(fTotal);
+          for (let i = 0; i < fTotal; i++) {
+            const pi = i * 4;
+            prevForehead[i] = (0.299 * imgData[pi] + 0.587 * imgData[pi+1] + 0.114 * imgData[pi+2]);
           }
 
-          // Build rolling baseline when eyes are stable
-          if (varianceHistory.length < 10) {
-            varianceHistory.push(eyeStdDev);
+          const statsL = computePatchStats(imgData, 0, 24, 30, 30);
+          const statsR = computePatchStats(imgData, 34, 24, 30, 30);
+
+          // Calibrate open-eye baseline over 12 steady frames
+          if (baselineHistoryL.length < 12) {
+            if (avgFMotion < 4.0) {
+              baselineHistoryL.push(statsL.stdDev);
+              baselineHistoryR.push(statsR.stdDev);
+              baselineP10HistoryL.push(statsL.p10);
+              baselineP10HistoryR.push(statsR.p10);
+            }
             return;
           }
-          const baselineStdDev = varianceHistory.reduce((a, b) => a + b, 0) / varianceHistory.length;
 
-          // Update rolling baseline only when head is steady and eyes are open
-          if (avgForeheadMotion < 3.5 && blinkPhase === 0) {
-            varianceHistory.shift();
-            varianceHistory.push(eyeStdDev);
+          const baseStdL = baselineHistoryL.reduce((a, b) => a + b, 0) / baselineHistoryL.length;
+          const baseStdR = baselineHistoryR.reduce((a, b) => a + b, 0) / baselineHistoryR.length;
+          const baseP10L = baselineP10HistoryL.reduce((a, b) => a + b, 0) / baselineP10HistoryL.length;
+          const baseP10R = baselineP10HistoryR.reduce((a, b) => a + b, 0) / baselineP10HistoryR.length;
+
+          // Slowly update baseline when head is still and eyes are open
+          if (avgFMotion < 3.0 && blinkPhase === 0) {
+            baselineHistoryL.shift(); baselineHistoryL.push(statsL.stdDev);
+            baselineHistoryR.shift(); baselineHistoryR.push(statsR.stdDev);
+            baselineP10HistoryL.shift(); baselineP10HistoryL.push(statsL.p10);
+            baselineP10HistoryR.shift(); baselineP10HistoryR.push(statsR.p10);
           }
 
-          // Differential motion cancels device shaking and hand jitter
-          const differentialMotion = Math.max(0, avgEyeMotion - (avgForeheadMotion * 1.25));
-          // Contrast drops as eyelid covers sclera and pupil with skin
-          const contrastDrop = (baselineStdDev > 5) ? (baselineStdDev - eyeStdDev) / baselineStdDev : 0;
+          // True physical signals of eyelid closure:
+          // 1. Contrast drops significantly as eyelids cover high-contrast sclera/iris
+          const dropL = (baseStdL > 4) ? (baseStdL - statsL.stdDev) / baseStdL : 0;
+          const dropR = (baseStdR > 4) ? (baseStdR - statsR.stdDev) / baseStdR : 0;
 
-          // Enforce 450ms cooldown between consecutive blinks
-          if (now - lastBlinkTime < 450) {
+          // 2. Pupil darkness disappears: the darkest 10% of pixels become skin-toned
+          const pupilDeltaL = statsL.p10 - baseP10L;
+          const pupilDeltaR = statsR.p10 - baseP10R;
+
+          // Strict cooldown between consecutive blinks (at least 600ms)
+          if (now - lastBlinkTime < 600) {
             blinkPhase = 0;
             return;
           }
 
-          // Phase 0: Eyes are open. Detect downward eyelid closure motion
+          // Phase 0: Eyes are open. Detect genuine bilateral eyelid closure.
+          // Requires BOTH eyes to lose contrast (at least 20%) AND pupil darkness to lighten
           if (blinkPhase === 0) {
-            const isClosing = (differentialMotion > 3.2 && contrastDrop > 0.08) ||
-                              (differentialMotion > 4.8 && contrastDrop > 0.04) ||
-                              (differentialMotion > 6.2);
-            if (isClosing) {
+            const eyesClosing = (dropL >= 0.20 && dropR >= 0.20) &&
+                                (pupilDeltaL >= 8 || pupilDeltaR >= 8) &&
+                                (avgFMotion < 8.0);
+
+            if (eyesClosing) {
               blinkPhase = 1;
               eyeClosedStart = now;
+              maxDepthReachedL = dropL;
+              maxDepthReachedR = dropR;
             }
           }
-          // Phase 1: Eyes closed. Detect eyelid reopening within physiological window (90ms - 550ms)
+          // Phase 1: Eyes closed. Wait for confirmed bilateral reopening.
           else if (blinkPhase === 1) {
             const closedDuration = now - eyeClosedStart;
+            maxDepthReachedL = Math.max(maxDepthReachedL, dropL);
+            maxDepthReachedR = Math.max(maxDepthReachedR, dropR);
 
-            const contrastRecovered = contrastDrop < 0.06 || eyeStdDev >= (baselineStdDev * 0.88);
-            const motionDuringOpen = differentialMotion > 2.0;
+            // Reopening requires BOTH eyes to return to open baseline (drop <= 0.08)
+            // and pupil darkness to return close to base
+            const eyesReopened = (dropL <= 0.08 && dropR <= 0.08) &&
+                                 (pupilDeltaL <= 8 && pupilDeltaR <= 8);
 
-            if (closedDuration >= 90 && closedDuration <= 550 && (contrastRecovered || motionDuringOpen)) {
-              // Real physiological blink completed
-              blinkPhase = 0;
-              lastBlinkTime = now;
-              if (navigator.vibrate) { try { navigator.vibrate(35); } catch (_) {} }
-              onBlinkRegistered();
+            // Physical human blink timing: 100ms - 550ms
+            if (closedDuration >= 100 && closedDuration <= 550 && eyesReopened) {
+              // Ensure the closure actually reached a deep dip during this cycle
+              if (maxDepthReachedL >= 0.22 && maxDepthReachedR >= 0.22) {
+                blinkPhase = 0;
+                lastBlinkTime = now;
+                if (navigator.vibrate) { try { navigator.vibrate(40); } catch (_) {} }
+                onBlinkRegistered();
+              } else {
+                blinkPhase = 0;
+              }
             } else if (closedDuration > 600) {
-              // Prolonged closure or looking downward -> reset state
+              // Prolonged closure (squinting, looking down, asleep) -> reset without counting
               blinkPhase = 0;
             }
           }
         } catch (e) {
-          console.warn('Auto blink loop error:', e);
+          console.warn('Blink detector error:', e);
         }
-      }, 33); // ~30fps sampling
+      }, 33);
     }
 
     function onBlinkRegistered() {
@@ -2507,8 +2526,6 @@
         $('bp1').innerHTML = SVGS.check + ' Blink 1';
         $('camSubline').textContent = '1 of 2 blinks detected! Please blink once more…';
       } else if (state.blinksDetected >= 2) {
-        const mb = $('blinkManualDoneBtn');
-        if (mb) mb.classList.add('hidden');
         $('bp2').className = 'blink-pill active';
         $('bp2').innerHTML = SVGS.check + ' Blink 2';
         $('camHeadline').textContent = 'Blinks Detected! ✓';
@@ -2529,8 +2546,6 @@
     /* ──────────── STEP 6B: Spontaneous Phrase Challenge (Real-Time Overlay) ──────────── */
     function launchPhraseChallenge() {
       state.camMode = 'phrase';
-      const mb = $('blinkManualDoneBtn');
-      if (mb) mb.classList.add('hidden');
 
       const phraseCh = state.challenges.find(c => c.type === 'phrase');
       const phrasePrompt = phraseCh ? (phraseCh.prompt || '') : '';

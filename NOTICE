@@ -21,3 +21,9 @@ This product includes software and pretrained neural weights developed by third 
 4. ViT Deepfake Classifier:
    - PrithivMLmods (prithivMLmods/Deep-Fake-Detector-v2-Model)
    - Licensed under the Apache License, Version 2.0.
+
+5. MiniFASNetV2 (Silent-Face-Anti-Spoofing):
+   - Minivision (https://github.com/minivision-ai/Silent-Face-Anti-Spoofing)
+   - Copyright (c) 2020 Minivision
+   - Licensed under the Apache License, Version 2.0.
+

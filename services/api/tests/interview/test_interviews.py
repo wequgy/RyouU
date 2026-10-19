@@ -178,8 +178,8 @@ def test_overlay_security_and_assets():
     
     # Dependencies must be pinned to exact version (no caret / wildcard)
     electron_ver = pkg.get("devDependencies", {}).get("electron", "")
-    assert electron_ver != "*" and not electron_ver.startswith("^")
-    assert electron_ver.startswith("31")
+    assert electron_ver != "*" and not electron_ver.startswith("^") and not electron_ver.startswith("~")
+    assert int(electron_ver.split(".")[0]) >= 32
     
     # HTML security posture (CSP)
     index_html = (overlay_dir / "src/renderer/index.html").read_text(encoding="utf-8")

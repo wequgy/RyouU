@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import db
 from app.config import get_settings
+from app.auth import router as auth_router
 from app.core.router import router as core_router
 from app.kyc.router import router as kyc_router
 from app.interview.router import router as interview_router
@@ -64,8 +65,9 @@ def create_app() -> FastAPI:
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-    # 1. Always mount Core router
+    # 1. Always mount Core and Auth routers
     app.include_router(core_router)
+    app.include_router(auth_router)
 
     # 2. Conditionally mount KYC product router
     if s.enable_kyc:

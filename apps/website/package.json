@@ -1,0 +1,16 @@
+{
+  "name": "ryouu-website",
+  "version": "1.0.0",
+  "description": "RyouU Identity Verification Suite - Vue.js (VitePress) Marketing & Documentation Site",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "vitepress": "^1.6.3",
+    "vue": "^3.5.13"
+  }
+}

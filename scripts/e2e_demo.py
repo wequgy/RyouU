@@ -2,7 +2,7 @@
 
 Usage:
   python -m scripts.e2e_demo --all-scenarios
-  python -m scripts.e2e_demo --key kyc_demo_strict_key --id id.jpg --selfie me.jpg --audio clip.webm
+  python -m scripts.e2e_demo --key $KYC_API_KEY --id id.jpg --selfie me.jpg --audio clip.webm
   python -m scripts.e2e_demo --virtual-cam
   python -m scripts.e2e_demo --wrong-id-digits
 
@@ -104,7 +104,7 @@ def run_session(client, key, scenario_name, *,
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://localhost:8000")
-    ap.add_argument("--key", default="kyc_demo_strict_key")
+    ap.add_argument("--key", default=os.environ.get("KYC_API_KEY"), help="Tenant API key (or set KYC_API_KEY env var)")
     ap.add_argument("--all-scenarios", action="store_true")
     ap.add_argument("--id")
     ap.add_argument("--selfie")
@@ -112,6 +112,12 @@ def main():
     ap.add_argument("--virtual-cam", action="store_true")
     ap.add_argument("--wrong-id-digits", action="store_true")
     a = ap.parse_args()
+
+    api_key = a.key or os.environ.get("KYC_API_KEY")
+    if not api_key:
+        print("ERROR: Missing API key. Pass --key or set the KYC_API_KEY environment variable.")
+        print("Demo keys are generated at runtime: set KYC_SEED_DEMO=1 and run python -m scripts.seed_demo")
+        sys.exit(1)
 
     c = httpx.Client(base_url=a.base, timeout=60)
 
@@ -127,31 +133,31 @@ def main():
         results = []
 
         # Scenario 1: Wrong ID Details (OCR gate blocks mismatched name)
-        r1 = run_session(c, a.key, "Wrong ID Details", id_bytes=id_data,
+        r1 = run_session(c, api_key, "Wrong ID Details", id_bytes=id_data,
                          expected={"name": "Mismatched Person", "dob": "1990-01-01", "id_last4": "9999"})
         results.append(r1)
 
         # Scenario 2: Different-Person / Mismatched Selfie (Selfie gate blocks)
-        r2 = run_session(c, a.key, "Different-Person Selfie", id_bytes=id_data, selfie_bytes=other_face_data,
+        r2 = run_session(c, api_key, "Different-Person Selfie", id_bytes=id_data, selfie_bytes=other_face_data,
                          expected={"name": "Etta", "dob": "2012-03-31", "id_last4": "28"})
         results.append(r2)
 
         # Scenario 3: Virtual Camera Injection (Flagged in source checks)
         selfie_vcam = (selfie_data + b"\x01") if selfie_data else None
-        r3 = run_session(c, a.key, "Virtual Camera (OBS)", id_bytes=id_data, selfie_bytes=selfie_vcam,
+        r3 = run_session(c, api_key, "Virtual Camera (OBS)", id_bytes=id_data, selfie_bytes=selfie_vcam,
                          expected={"name": "Etta", "dob": "2012-03-31", "id_last4": "28"},
                          signals={"camera_labels": ["OBS Virtual Camera", "v4l2loopback"]})
         results.append(r3)
 
         # Scenario 4: Spoken Digits Mismatch (Voice / transcripts mismatch)
         selfie_digits = (selfie_data + b"\x02") if selfie_data else None
-        r4 = run_session(c, a.key, "Spoken Digits Mismatch", id_bytes=id_data, selfie_bytes=selfie_digits,
+        r4 = run_session(c, api_key, "Spoken Digits Mismatch", id_bytes=id_data, selfie_bytes=selfie_digits,
                          expected={"name": "Etta", "dob": "2012-03-31", "id_last4": "28"},
                          wrong_transcripts=True)
         results.append(r4)
 
         # Scenario 5: Replayed Media Across Sessions (Replays selfie from Scenario 3)
-        r5 = run_session(c, a.key, "Replayed Selfie Attack", id_bytes=id_data, selfie_bytes=selfie_vcam,
+        r5 = run_session(c, api_key, "Replayed Selfie Attack", id_bytes=id_data, selfie_bytes=selfie_vcam,
                          expected={"name": "Etta", "dob": "2012-03-31", "id_last4": "28"})
         results.append(r5)
 
@@ -170,7 +176,7 @@ def main():
 
     # Single interactive demo
     sig = {"camera_labels": ["OBS Virtual Camera"]} if a.virtual_cam else None
-    res = run_session(c, a.key, "Single Run", signals=sig, wrong_transcripts=a.wrong_id_digits)
+    res = run_session(c, api_key, "Single Run", signals=sig, wrong_transcripts=a.wrong_id_digits)
     print(json.dumps(res, indent=2))
 
 

@@ -21,8 +21,14 @@ def main():
     print("=" * 70)
 
     # 1. Download missing model weights and verify checksums
-    print("Verifying model weights and checksums...")
-    ensure_models_downloaded("all")
+    product_scope = "all"
+    if s.enable_kyc and not s.enable_interview:
+        product_scope = "kyc"
+    elif s.enable_interview and not s.enable_kyc:
+        product_scope = "interview"
+
+    print(f"Verifying model weights and checksums for scope: {product_scope}...")
+    ensure_models_downloaded(product_scope)
     print("-" * 70)
 
     # 2. KYC Product Models

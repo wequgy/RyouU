@@ -8,6 +8,8 @@ out/
 logs/
 *.log
 .DS_Store
+test-results/
+playwright-report/
 
 # Python
 __pycache__/

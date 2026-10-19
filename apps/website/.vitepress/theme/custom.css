@@ -1,0 +1,266 @@
+/* RyouU Design Tokens Integration with VitePress */
+@import "./tokens.css";
+
+:root {
+  /* VitePress Brand Color Mapping to RyouU Lime */
+  --vp-c-brand-1: #65A30D;
+  --vp-c-brand-2: #4D7C0F;
+  --vp-c-brand-3: #3F6212;
+  --vp-c-brand-soft: #F7FEE7;
+
+  /* Typography */
+  --vp-font-family-base: var(--font-main);
+  --vp-font-family-mono: var(--font-mono);
+
+  /* Surfaces & Backgrounds */
+  --vp-c-bg: var(--bg-app);
+  --vp-c-bg-alt: var(--surface-card-sub);
+  --vp-c-bg-soft: var(--surface-card-sub);
+  --vp-c-bg-elv: var(--surface-card);
+
+  /* Borders & Dividers */
+  --vp-c-border: var(--border);
+  --vp-c-divider: var(--border-subtle);
+  --vp-c-gutter: var(--border);
+
+  /* High-Contrast Text */
+  --vp-c-text-1: var(--text);
+  --vp-c-text-2: var(--text-sub);
+  --vp-c-text-3: var(--text-muted);
+
+  /* Custom component tokens */
+  --header-height: 64px;
+}
+
+.dark {
+  --vp-c-brand-1: #84CC16;
+  --vp-c-brand-2: #65A30D;
+  --vp-c-brand-3: #BEF264;
+  --vp-c-brand-soft: rgba(101, 163, 13, 0.15);
+
+  --vp-c-bg: #0B0F17;
+  --vp-c-bg-alt: #0F172A;
+  --vp-c-bg-soft: #131B2B;
+  --vp-c-bg-elv: #131B2B;
+
+  --vp-c-border: #1E293B;
+  --vp-c-divider: #162032;
+
+  --vp-c-text-1: #F8FAFC;
+  --vp-c-text-2: #E2E8F0;
+  --vp-c-text-3: #94A3B8;
+}
+
+/* Universal Button Styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: var(--radius-pill);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: #FFFFFF !important;
+  border: 1px solid transparent;
+  padding: 12px 24px;
+  box-shadow: var(--shadow-primary);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: var(--surface-card);
+  color: var(--text) !important;
+  border: 1px solid var(--border);
+  padding: 12px 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary:hover {
+  background-color: var(--surface-card-hover);
+  border-color: var(--border-card-hover);
+  transform: translateY(-1px);
+}
+
+/* Universal Status Chips */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3.5px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.status-chip.stable,
+.status-chip.approved,
+.status-chip.pass {
+  background-color: var(--signal-clear-bg);
+  color: var(--signal-clear);
+  border: 1px solid var(--signal-clear-border);
+}
+
+.status-chip.beta,
+.status-chip.review,
+.status-chip.uncertain {
+  background-color: var(--signal-caution-bg);
+  color: var(--signal-caution);
+  border: 1px solid var(--signal-caution-border);
+}
+
+.status-chip.experimental,
+.status-chip.flagged,
+.status-chip.fail {
+  background-color: var(--signal-flag-bg);
+  color: var(--signal-flag);
+  border: 1px solid var(--signal-flag-border);
+}
+
+.status-chip.idle {
+  background-color: var(--badge-count-bg);
+  color: var(--badge-count-text);
+  border: 1px solid var(--border);
+}
+
+/* Card Surface */
+.card-surface {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+  transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.card-surface:hover {
+  border-color: var(--border-card-hover);
+}
+
+/* Navbar Logo Styling */
+.VPNavBarTitle .logo {
+  height: 32px !important;
+  width: auto !important;
+  max-width: 190px !important;
+  object-fit: contain;
+}
+
+/* Collapsible Desktop Sidebar */
+.sidebar-collapse-wrapper {
+  padding: 8px 12px 14px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  margin-bottom: 12px;
+}
+
+.sidebar-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--surface-card-sub);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--vp-c-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.sidebar-collapse-btn:hover {
+  background: var(--surface-card-hover);
+  color: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-1);
+}
+
+.sidebar-collapse-btn svg {
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.sidebar-collapse-btn .btn-text {
+  flex-grow: 1;
+  text-align: left;
+}
+
+.sidebar-collapse-btn .kbd-shortcut {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 2px 5px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--vp-c-text-3);
+}
+
+/* Floating Expand Pill */
+.sidebar-expand-pill {
+  position: fixed;
+  left: 20px;
+  bottom: 24px;
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: var(--surface-card);
+  color: var(--vp-c-text-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-card);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  animation: slideInLeft 0.25s ease-out;
+}
+
+.sidebar-expand-pill:hover {
+  background: var(--vp-c-brand-1);
+  color: #FFFFFF;
+  border-color: var(--vp-c-brand-1);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-primary);
+}
+
+.sidebar-expand-pill .kbd-pill-shortcut {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (min-width: 960px) {
+  html.sidebar-collapsed .VPSidebar {
+    transform: translateX(-100%) !important;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  
+  html.sidebar-collapsed .VPContent.has-sidebar {
+    padding-left: 0 !important;
+    transition: padding-left 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    max-width: 100% !important;
+  }
+}
+

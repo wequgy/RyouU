@@ -1,0 +1,84 @@
+name: Deploy RyouU Product Website
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/website/**'
+      - 'packages/design-tokens/**'
+      - '.github/workflows/deploy-pages.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/website/**'
+      - 'packages/design-tokens/**'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  test-and-build:
+    name: Test & Build Website
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify Documentation Code Samples
+        run: |
+          python scripts/verify_docs_code_samples.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'apps/website/package.json'
+
+      - name: Install Website Dependencies
+        working-directory: apps/website
+        run: npm ci
+
+      - name: Install Playwright Browsers for Visual Tests
+        working-directory: apps/website
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Visual Consistency & Token Tests
+        working-directory: apps/website
+        run: npm test
+
+      - name: Build Static Site with VitePress (Vue.js)
+        working-directory: apps/website
+        run: npm run build
+
+      - name: Upload Artifact for Deployment
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/website/.vitepress/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.ref == 'refs/heads/main'
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

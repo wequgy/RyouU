@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from cryptography.fernet import Fernet
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 
 from . import db
 from .config import get_settings
@@ -115,9 +115,28 @@ def verify_signature(secret: str, body: bytes, header: str, tolerance_s: int = 3
 
 
 # ---------- FastAPI dependencies ----------
-def require_tenant(authorization: Optional[str] = Header(default=None)) -> dict:
+def require_tenant(
+    request: Request,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    # 1. Check for valid reviewer session cookie
+    session_id = request.cookies.get("kyc_session")
+    if session_id:
+        from app.auth import get_session, verify_csrf
+        sess = get_session(session_id)
+        if sess:
+            verify_csrf(request, sess)
+            return {
+                "id": "reviewer",
+                "name": f"Dashboard {sess.get('role', 'reviewer').title()} ({sess['username']})",
+                "role": sess.get("role", "reviewer"),
+                "products": ["kyc", "interview"],
+                "key_scopes": ["admin:*", "kyc:*", "interview:*"],
+            }
+
+    # 2. Check for Bearer API key
     if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(401, "Missing bearer API key")
+        raise HTTPException(401, "Missing bearer API key or session cookie")
     tenant = db.tenant_by_api_key(authorization.split(" ", 1)[1].strip())
     if not tenant:
         raise HTTPException(401, "Invalid API key")

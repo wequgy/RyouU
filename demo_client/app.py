@@ -27,13 +27,18 @@ if str(sdk_path) not in sys.path:
 from unclone_kyc import Client, WebhookVerificationError, verify_webhook
 
 API_BASE = os.environ.get("KYC_API_BASE", "http://localhost:8000")
-API_KEY = os.environ.get("KYC_API_KEY", "kyc_demo_strict_key")
+API_KEY = os.environ.get("KYC_API_KEY", "").strip()
+if not API_KEY and "pytest" not in sys.modules and not os.environ.get("PYTEST_CURRENT_TEST"):
+    raise RuntimeError(
+        "KYC_API_KEY environment variable is missing. "
+        "Run 'KYC_SEED_DEMO=1 python -m scripts.seed_demo' to seed demo tenants and obtain an active API key."
+    )
 WEBHOOK_SECRET = os.environ.get("KYC_WEBHOOK_SECRET", os.environ.get("DEMO_WEBHOOK_SECRET", "whsec_demo"))
 
 app = FastAPI(title="Reference Customer Backend (ApexPay Server)")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-client = Client(api_key=API_KEY, base_url=API_BASE)
+client = Client(api_key=API_KEY or "unclone_demo_key", base_url=API_BASE)
 EVENTS: List[Dict[str, Any]] = []
 
 

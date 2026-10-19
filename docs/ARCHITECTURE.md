@@ -101,6 +101,31 @@ Tenant API keys are hashed with SHA-256 before storage in `api_keys`. They carry
 - `interview:*`: Grants access to interview session creation, clip uploads, and analysis.
 - `admin:*`: Grants tenant admin functions (API key minting, rotation, revocation).
 
+### Package Structure & Single Import Path
+The core service installs as a dedicated package via `services/api/pyproject.toml` (`pip install -e services/api`).
+- Importing through `services.api.app` is blocked at import time with an `ImportError`.
+- Only the single canonical import path `app.*` is supported.
+- Eliminates duplicated settings singletons, database pools, and AI model weight instances.
+
+### Installation Commands & Product Extras
+```bash
+# KYC only installation (no torch, purely onnxruntime):
+pip install -e "services/api[kyc,dev]"
+
+# Interview / Overlay only installation:
+pip install -e "services/api[interview,dev]"
+
+# Full suite (both products + Postgres):
+pip install -e "services/api[all]"
+```
+
+### Dashboard Authentication & Session Security
+- Web dashboard does not use tenant API keys or `localStorage`.
+- Authentication uses `/v1/auth/login` issuing a short-lived, `httpOnly`, `SameSite=lax` session cookie.
+- Passwords are encrypted with Argon2 (`argon2-cffi`).
+- Rate limiting enforces a strict 5 failed attempts/minute limit.
+- State-changing API operations (`POST`, `PUT`, `DELETE`) require a valid `X-CSRF-Token` header.
+
 ### Standalone Interview Mode
 When a customer uses Interview Integrity without KYC:
 - An interview session is initiated without a `reference_id` or `candidate_id` linked to KYC.

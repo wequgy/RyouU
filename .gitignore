@@ -10,6 +10,7 @@ htmlcov/
 .venv/
 venv/
 env/
+*.egg-info/
 
 # Local environment and secrets
 .env
@@ -93,4 +94,7 @@ sdk/android/local.properties
 *.temp
 *.orig
 
-
+# VitePress & Vercel
+.vitepress/cache/
+.vitepress/dist/
+.vercel/

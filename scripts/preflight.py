@@ -97,6 +97,19 @@ def main():
     print(f"Unclone Suite Preflight System Diagnostics [KYC_STRICT={'1' if strict else '0'}]")
     print("=" * 75)
 
+    # 1. Download missing models and verify pinned SHA-256 checksums
+    product_scope = "all"
+    if s.enable_kyc and not s.enable_interview:
+        product_scope = "kyc"
+    elif s.enable_interview and not s.enable_kyc:
+        product_scope = "interview"
+
+    from scripts.download_models import ensure_models_downloaded
+    download_ok = ensure_models_downloaded(product_scope, exit_on_failure=strict)
+    if not download_ok and strict:
+        print("ERROR: Model download and checksum verification failed under KYC_STRICT=1.")
+        sys.exit(1)
+
     checks = []
     if s.enable_kyc:
         checks.extend([
@@ -107,6 +120,8 @@ def main():
             ("Faster-Whisper (ASR)", lambda: check_whisper(s)),
         ])
     if s.enable_interview:
+        if not s.enable_kyc:
+            checks.append(("InsightFace (buffalo_l)", check_insightface))
         checks.extend([
             ("ViT Deepfake / GenD", check_vit_deepfake),
             ("SyncNet (Lip-Sync)", check_syncnet),

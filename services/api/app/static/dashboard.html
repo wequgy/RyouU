@@ -283,9 +283,10 @@
       <span class="brand-title">KYC Compliance & Review Engine</span>
     </div>
     <div class="header-actions">
-      <div class="key-input-box">
-        <span style="font-size:12px;color:var(--text-muted)">API Key:</span>
-        <input type="password" id="apiKeyInput" value="kyc_demo_strict_key" onchange="saveKey()">
+      <div id="userBadge" style="display:none;align-items:center;gap:8px;font-size:13px;color:var(--text-muted)">
+        <span style="width:8px;height:8px;border-radius:50%;background:var(--success)"></span>
+        <span id="userNameLbl">Reviewer</span>
+        <button class="btn btn-secondary" style="padding:4px 8px;font-size:11px" onclick="handleLogout()">Logout</button>
       </div>
       <button class="btn btn-secondary" onclick="loadSessions()">Refresh</button>
       <a href="/readyz" target="_blank" class="btn btn-secondary" style="text-decoration:none">Health & Models</a>
@@ -363,31 +364,108 @@
     </div>
   </div>
 
+  <!-- Reviewer Login Modal -->
+  <div id="loginBackdrop" class="modal-backdrop hidden" style="display:flex;align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--surface-border);border-radius:12px;padding:30px;max-width:380px;width:90%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <span class="brand-badge">RyouU</span>
+        <h3 style="font-size:16px;font-weight:700">Reviewer Portal Login</h3>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:18px">Authenticate session with compliance reviewer credentials.</p>
+      <form onsubmit="handleLogin(event)" style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;font-weight:600">Username</label>
+          <input type="text" id="loginUsername" required style="width:100%;background:var(--card-bg);border:1px solid var(--surface-border);padding:8px 12px;border-radius:6px;color:var(--text-main);font-size:13px;outline:none" value="reviewer">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;font-weight:600">Password</label>
+          <input type="password" id="loginPassword" required style="width:100%;background:var(--card-bg);border:1px solid var(--surface-border);padding:8px 12px;border-radius:6px;color:var(--text-main);font-size:13px;outline:none" placeholder="••••••••">
+        </div>
+        <div id="loginErr" style="font-size:12px;color:var(--danger);display:none"></div>
+        <button type="submit" class="btn btn-primary" style="margin-top:6px;width:100%;justify-content:center">Log In</button>
+      </form>
+    </div>
+  </div>
+
   <script>
     let currentSessions = [];
     let activeFilter = 'all';
     let activeSession = null;
+    let csrfToken = null;
 
-    function getKey() {
-      return localStorage.getItem('ryouu_kyc_key') || document.getElementById('apiKeyInput').value.trim();
+    async function checkSession() {
+      try {
+        const res = await fetch('/v1/auth/me', { credentials: 'same-origin' });
+        if (res.ok) {
+          const data = await res.json();
+          csrfToken = data.csrf_token;
+          document.getElementById('userNameLbl').textContent = data.username || 'Reviewer';
+          document.getElementById('userBadge').style.display = 'flex';
+          document.getElementById('loginBackdrop').classList.add('hidden');
+          return true;
+        }
+      } catch (e) {}
+      document.getElementById('userBadge').style.display = 'none';
+      document.getElementById('loginBackdrop').classList.remove('hidden');
+      return false;
     }
 
-    function saveKey() {
-      const k = document.getElementById('apiKeyInput').value.trim();
-      localStorage.setItem('ryouu_kyc_key', k);
-      loadSessions();
+    async function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const errEl = document.getElementById('loginErr');
+      errEl.style.display = 'none';
+
+      try {
+        const res = await fetch('/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ username, password })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(err.detail || 'Login failed');
+        }
+        const data = await res.json();
+        csrfToken = data.csrf_token;
+        document.getElementById('userNameLbl').textContent = data.username || 'Reviewer';
+        document.getElementById('userBadge').style.display = 'flex';
+        document.getElementById('loginBackdrop').classList.add('hidden');
+        loadSessions();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      }
+    }
+
+    async function handleLogout() {
+      await fetch('/v1/auth/logout', { method: 'POST', credentials: 'same-origin' });
+      csrfToken = null;
+      document.getElementById('userBadge').style.display = 'none';
+      document.getElementById('loginBackdrop').classList.remove('hidden');
+      document.getElementById('sessionsTbody').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Please log in to view compliance sessions</td></tr>';
     }
 
     async function api(path, options = {}) {
-      const key = getKey();
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      };
+      if (csrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes((options.method || 'GET').toUpperCase())) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
       const res = await fetch(path, {
         ...options,
-        headers: {
-          'Authorization': `Bearer ${key}`,
-          'Content-Type': 'application/json',
-          ...(options.headers || {})
-        }
+        headers,
+        credentials: 'same-origin'
       });
+      if (res.status === 401) {
+        document.getElementById('loginBackdrop').classList.remove('hidden');
+        document.getElementById('userBadge').style.display = 'none';
+        throw new Error('Session expired or unauthenticated. Please log in.');
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         throw new Error(err.detail || err.message || res.statusText);
@@ -552,11 +630,13 @@
       }
     }
 
-    // Initialize
-    const saved = localStorage.getItem('ryouu_kyc_key');
-    if (saved) document.getElementById('apiKeyInput').value = saved;
-    loadSessions();
-    setInterval(loadSessions, 6000);
+    // Initialize session
+    checkSession().then(isLoggedIn => {
+      if (isLoggedIn) {
+        loadSessions();
+        setInterval(loadSessions, 6000);
+      }
+    });
   </script>
 </body>
 </html>

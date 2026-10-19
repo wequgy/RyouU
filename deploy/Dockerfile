@@ -17,14 +17,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml .
-COPY requirements.txt .
-COPY requirements-all.lock .
+COPY services/api/ services/api/
+COPY sdks/ sdks/
+COPY scripts/ scripts/
 
-RUN pip install --no-cache-dir -r requirements-all.lock || pip install --no-cache-dir ".[kyc,interview,postgres,dev]"
+RUN pip install --no-cache-dir -e "services/api[all]"
 
 COPY . .
 
-# Run preflight and validation during container verification if desired
+# Download and verify models with pinned checksums
+RUN python -m scripts.download_models
+
+# Run undeclared import scanner during container build
 RUN python scripts/check_undeclared_imports.py
 
 EXPOSE 8000

@@ -7,8 +7,25 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
-    name: Clean Install & Full Test Suite
+  # 1. Secret Scanning with Gitleaks
+  gitleaks:
+    name: Gitleaks History Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Full Git History
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: "free"
+
+  # 2. Fresh Clone with Empty models/ Directory
+  empty-models:
+    name: Model Pipeline from Empty Directory
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -24,23 +41,122 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg libsndfile1 libgl1 libglib2.0-0
 
-      - name: Install Suite Extras (Clean Clone)
+      - name: Ensure models/ is completely empty
+        run: |
+          rm -rf models
+          mkdir -p models
+          [ -z "$(ls -A models)" ] || exit 1
+
+      - name: Install Package
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[kyc,interview,postgres,dev]"
+          pip install -e "services/api[all]"
+
+      - name: Download & Verify Models with SHA-256 Checksums
+        run: |
+          python -m scripts.download_models all
+
+      - name: Verify Model Warmup & Diagnostics
+        env:
+          KYC_DEV_MODE: "1"
+        run: |
+          python -m scripts.warmup
+          python -m scripts.preflight
+
+  # 3. Product Extras & Matrix Isolation
+  python-suite:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "KYC Only Extra (ENABLE_INTERVIEW=0)"
+            extra: "services/api[kyc,dev]"
+            enable_kyc: "1"
+            enable_interview: "0"
+            tests: "services/api/tests/kyc services/api/tests/core"
+          - name: "Interview Only Extra (ENABLE_KYC=0)"
+            extra: "services/api[interview,dev]"
+            enable_kyc: "0"
+            enable_interview: "1"
+            tests: "services/api/tests/interview services/api/tests/core"
+          - name: "Combined Suite (Dual Product)"
+            extra: "services/api[all]"
+            enable_kyc: "1"
+            enable_interview: "1"
+            tests: "services/api/tests tests"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libsndfile1 libgl1 libglib2.0-0
+
+      - name: Install Target Extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "${{ matrix.extra }}"
 
       - name: Check Undeclared Runtime Imports
         run: |
           python scripts/check_undeclared_imports.py
 
-      - name: Run System Diagnostics & Model Preflight
+      - name: Run Model Preflight (Lists only enabled product models)
         env:
+          ENABLE_KYC: ${{ matrix.enable_kyc }}
+          ENABLE_INTERVIEW: ${{ matrix.enable_interview }}
           KYC_DEV_MODE: "1"
         run: |
           python -m scripts.preflight
 
-      - name: Run Full Test Suite (including liveness tests)
+      - name: Run Product Test Suite
         env:
+          ENABLE_KYC: ${{ matrix.enable_kyc }}
+          ENABLE_INTERVIEW: ${{ matrix.enable_interview }}
           KYC_DEV_MODE: "1"
         run: |
-          pytest -v --durations=10
+          pytest ${{ matrix.tests }} -v --durations=10
+
+  # 4. Overlay Desktop App & Playwright UI Tests
+  overlay-ui:
+    name: Overlay App & Playwright UI Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/overlay/package-lock.json
+
+      - name: Install Overlay Dependencies
+        working-directory: apps/overlay
+        run: |
+          npm ci
+
+      - name: Install Playwright Chromium with System Dependencies
+        working-directory: apps/overlay
+        run: |
+          npx playwright install --with-deps chromium
+
+      - name: Run Overlay Tests (Rules, Scaling, Scrollbars & Banner)
+        working-directory: apps/overlay
+        run: |
+          npm test
+
+      - name: Run Overlay Packaging Build
+        working-directory: apps/overlay
+        run: |
+          npm run pack

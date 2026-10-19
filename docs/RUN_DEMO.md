@@ -11,7 +11,7 @@ This guide provides the exact commands to run the **Unclone Suite** across each 
 
 ```bash
 # 1. Clone repository and install dependencies with all extras
-pip install -e ".[all]"
+pip install -e "services/api[all]"
 
 # 2. Download and verify model weights (SHA-256 verified)
 python -m scripts.download_models
@@ -29,13 +29,14 @@ python -m scripts.preflight
 Best for fintech, banking, and crypto onboarding platforms needing only document OCR, 3D liveness, and face matching. Does not mount interview routes or load interview models (ViT deepfake, SyncNet).
 
 ```bash
-# 1. Start the API with KYC enabled and Interview disabled
+# 1. Install KYC-only dependencies and start the API
+pip install -e "services/api[kyc,dev]"
 export ENABLE_KYC=true
 export ENABLE_INTERVIEW=false
-uvicorn services.api.app.main:app --port 8000 --reload
+uvicorn app.main:app --port 8000 --reload
 
 # On Windows PowerShell:
-# $env:ENABLE_KYC="true"; $env:ENABLE_INTERVIEW="false"; uvicorn services.api.app.main:app --port 8000 --reload
+# $env:ENABLE_KYC="true"; $env:ENABLE_INTERVIEW="false"; uvicorn app.main:app --port 8000 --reload
 ```
 
 ```bash
@@ -57,13 +58,14 @@ python -m sdks.kyc.python.example
 Best for HR, technical recruiting, and proctoring platforms monitoring live technical interviews (Zoom, Teams, Meet). Does not mount KYC verification routes or load KYC models.
 
 ```bash
-# 1. Start the API with Interview enabled and KYC disabled
+# 1. Install Interview-only dependencies and start the API
+pip install -e "services/api[interview,dev]"
 export ENABLE_KYC=false
 export ENABLE_INTERVIEW=true
-uvicorn services.api.app.main:app --port 8000 --reload
+uvicorn app.main:app --port 8000 --reload
 
 # On Windows PowerShell:
-# $env:ENABLE_KYC="false"; $env:ENABLE_INTERVIEW="true"; uvicorn services.api.app.main:app --port 8000 --reload
+# $env:ENABLE_KYC="false"; $env:ENABLE_INTERVIEW="true"; uvicorn app.main:app --port 8000 --reload
 ```
 
 ```bash
@@ -91,33 +93,41 @@ Enables both products with cross-product biometric reuse: candidates complete KY
 # 1. Start the API with both products enabled
 export ENABLE_KYC=true
 export ENABLE_INTERVIEW=true
-uvicorn services.api.app.main:app --port 8000 --reload
+uvicorn app.main:app --port 8000 --reload
 
 # On Windows PowerShell:
-# $env:ENABLE_KYC="true"; $env:ENABLE_INTERVIEW="true"; uvicorn services.api.app.main:app --port 8000 --reload
+# $env:ENABLE_KYC="true"; $env:ENABLE_INTERVIEW="true"; uvicorn app.main:app --port 8000 --reload
 ```
 
 ```bash
-# 2. Seed demo tenant credentials
+# 2. Seed demo tenant credentials (generated at runtime when KYC_SEED_DEMO=1)
+export KYC_SEED_DEMO=1
 python -m scripts.seed_demo
-# Creates tenant: demo_strict (key: kyc_demo_strict_key)
-# Creates tenant: demo_lenient (key: kyc_demo_lenient_key)
+# Prints runtime tenant keys: export KYC_API_KEY="<printed_key>"
 ```
 
 ```bash
 # 3. Mint short-lived interviewer credential for the overlay
 curl -X POST http://127.0.0.1:8000/v1/interviews/int_demo_01/token \
-  -H "Authorization: Bearer kyc_demo_strict_key" \
+  -H "Authorization: Bearer $KYC_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"candidate_name": "Demo Candidate", "reference_id": "ref_demo_123"}'
 # Returns: {"interview_id": "int_demo_01", "token": "itok_...", "expires_at": 1700000000}
 ```
 
 ```bash
-# 4. Launch Desktop Overlay with session token
+# 4. Launch Desktop Overlay with session token (via environment variable; never CLI arguments)
 cd apps/overlay
-npm start -- --interview-id=int_demo_01 --token=<YOUR_MINTED_TOKEN>
+export OVERLAY_TOKEN="itok_..."
+npm start -- --interview-id=int_demo_01
+# On Windows PowerShell:
+# $env:OVERLAY_TOKEN="itok_..."; npm start -- --interview-id=int_demo_01
 ```
+
+> [!NOTE]
+> **Platform Support for Meeting-App Detection**:
+> - Windows: Fully tested and active (PowerShell / Win32 process enumeration).
+> - macOS and Linux: **UNTESTED** (manual screen/window selection fallback).
 
 ---
 

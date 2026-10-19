@@ -334,13 +334,29 @@ function scheduleTokenRefresh(sessionData) {
 function parseLaunchSession() {
   const args = process.argv;
   let interviewId = process.env.INTERVIEW_ID || "";
-  let token = process.env.INTERVIEW_TOKEN || "";
+  let token = process.env.OVERLAY_TOKEN || process.env.INTERVIEW_TOKEN || "";
   let expiresAt = process.env.INTERVIEW_EXPIRES_AT ? parseInt(process.env.INTERVIEW_EXPIRES_AT) : null;
   let backendUrl = process.env.KYC_BACKEND_URL || DEFAULT_SERVER_URL;
 
+  // Stdin support (when piped in non-TTY mode)
+  if (!token && process.stdin && !process.stdin.isTTY) {
+    try {
+      const input = fs.readFileSync(0, "utf-8").trim();
+      if (input.startsWith("{")) {
+        const parsed = JSON.parse(input);
+        if (parsed.token) token = parsed.token;
+        if (parsed.interviewId || parsed.interview_id) interviewId = parsed.interviewId || parsed.interview_id;
+        if (parsed.expiresAt || parsed.expires_at) expiresAt = parseInt(parsed.expiresAt || parsed.expires_at);
+        if (parsed.backendUrl || parsed.backend_url) backendUrl = parsed.backendUrl || parsed.backend_url;
+      } else if (input) {
+        token = input;
+      }
+    } catch (_) {}
+  }
+
   for (const arg of args) {
     if (arg.startsWith("--interview-id=")) interviewId = arg.split("=")[1];
-    if (arg.startsWith("--token=")) token = arg.split("=")[1];
+    // Security: DO NOT extract token from CLI argument (visible in OS process list)
     if (arg.startsWith("--expires-at=")) expiresAt = parseInt(arg.split("=")[1]);
     if (arg.startsWith("--backend-url=")) backendUrl = arg.split("=")[1];
   }

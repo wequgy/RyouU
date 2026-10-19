@@ -9,12 +9,15 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js && npx playwright test",
+    "test:unit": "node --test tests/*.test.js",
+    "test:ui": "npx playwright test"
   },
   "type": "commonjs",
   "devDependencies": {
-    "electron": "31.3.0",
-    "electron-builder": "24.13.3"
+    "@playwright/test": "^1.64.1",
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8"
   },
   "build": {
     "appId": "com.unclone.overlay",

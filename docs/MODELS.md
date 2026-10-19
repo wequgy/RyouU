@@ -1,6 +1,6 @@
 # Models and Anti-Fraud Architecture
 
-This document catalogs every pretrained AI model, pipeline component, license, size, purpose, runtime, and calibration status across the **RyouU** KYC platform.
+This document catalogs every pretrained AI model, pipeline component, license, size, purpose, runtime, and calibration status across the **RyouU** KYC and interview integrity platform.
 
 ---
 
@@ -9,8 +9,8 @@ This document catalogs every pretrained AI model, pipeline component, license, s
 | Component | Model / Package | Artifact / Source | Size | License | Purpose | Execution |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Face Analysis & Embeddings** | InsightFace (`buffalo_l`) | `~/.insightface/models/buffalo_l/` | ~320 MB | **Non-Commercial** (InsightFace license) | Face detection (SCRFD 10GF), 512-dim embedding extraction (ArcFace w600k), 3D 68-point landmarks, and head pose estimation. | CPU (ONNX Runtime) |
-| **Face Landmarker & Blendshapes** | MediaPipe Face Landmarker | `models/face_landmarker.task` | 3.75 MB | **Apache 2.0** | 52 facial blendshapes (`eyeBlinkLeft`, `eyeBlinkRight`), 478 3D landmarks for real-time blink and movement liveness. | CPU (TFLite / XNNPACK) |
-| **Passive Anti-Spoofing** | MiniFASNetV2 (Silent-Face-Anti-Spoofing) | `models/minifasnet_v2.onnx` | 1.74 MB | **Apache 2.0** | Presentation attack detection (PAD), print/replay spoof classification via multi-scale face crops. | CPU (ONNX Runtime) |
+| **Face Landmarker & Blendshapes** | MediaPipe Face Landmarker | `models/face_landmarker.task` | 3.75 MB | **Apache 2.0** | 52 facial blendshapes (`eyeBlinkLeft`, `eyeBlinkRight`), 478 3D landmarks for real-time blink and movement liveness. Pinned v1 asset. | CPU (TFLite / XNNPACK) |
+| **Passive Anti-Spoofing** | MiniFASNetV2 (Silent-Face-Anti-Spoofing) | `models/minifasnet_v2.onnx` | 1.74 MB | **Apache 2.0** (Copyright 2020 Minivision) | Presentation attack detection (PAD), print/replay spoof classification via multi-scale face crops. Converted from official `2.7_80x80_MiniFASNetV2.pth` via `scripts/convert_minifasnet.py`. | CPU (ONNX Runtime) |
 | **ID Document OCR** | RapidOCR (`rapidocr-onnxruntime`) | Python package bundled models | ~15 MB | **Apache 2.0** | High-accuracy text bounding box detection and OCR on government ID cards. | CPU (ONNX Runtime) |
 | **Speech-to-Text (ASR)** | faster-whisper (`base.en` / `small`) | HuggingFace / CTranslate2 | ~140 MB (`base.en`) / ~460 MB (`small`) | **MIT / Apache 2.0** | Spontaneous challenge phrase verification and spoken detail transcription. | CPU (CTranslate2 int8) |
 | **Visual Deepfake Detection** | ViT Image Classifier (`prithivMLmods/Deep-Fake-Detector-v2-Model`) | HuggingFace Hub / PyTorch cache | ~340 MB | **Apache 2.0** | Multi-frame face crop deepfake and generative manipulation probability scoring. | CPU (PyTorch / Transformers) |
@@ -23,7 +23,24 @@ This document catalogs every pretrained AI model, pipeline component, license, s
 
 ---
 
-## 2. Decision Policy & Signal Constraints
+## 2. Third-Party Attributions & Licenses
+
+### MiniFASNetV2 (Silent-Face-Anti-Spoofing)
+- **Repository**: [minivision-ai/Silent-Face-Anti-Spoofing](https://github.com/minivision-ai/Silent-Face-Anti-Spoofing)
+- **Copyright**: Copyright (c) 2020 Minivision
+- **License**: Apache License, Version 2.0
+- **Model Checksum (SHA-256)**: `d7b3cd9ba8a7ceb13baa8c4720902e27ca3112eff52f926c08804af6b6eecc7b`
+- **Conversion**: Generated via `scripts/convert_minifasnet.py` (PyTorch -> ONNX opset 11 at 80x80 resolution, verified numerical tolerance < 1e-4).
+- **Runtime**: ONNX Runtime only (zero PyTorch dependency in production KYC).
+
+### MediaPipe Face Landmarker
+- **Source**: Google MediaPipe Model Asset Bundle (`float16/1/face_landmarker.task`)
+- **License**: Apache License, Version 2.0
+- **Model Checksum (SHA-256)**: `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff`
+
+---
+
+## 3. Decision Policy & Signal Constraints
 
 To protect against false-positive automated denials and ensure compliance with regulatory standards:
 
@@ -37,7 +54,7 @@ To protect against false-positive automated denials and ensure compliance with r
 
 ---
 
-## 3. Threshold Calibration & Benchmark Measurements
+## 4. Threshold Calibration & Benchmark Measurements
 
 | Check / Signal | Parameter / Metric | Threshold Value | Calibration State | Benchmark Metric |
 | :--- | :--- | :--- | :--- | :--- |
@@ -53,7 +70,7 @@ To protect against false-positive automated denials and ensure compliance with r
 
 ---
 
-## 4. Benchmark Summary Policy
+## 5. Benchmark Summary Policy
 
 In strict adherence to engineering standards:
 - Any benchmark metric not empirically evaluated on our collected dataset is explicitly labeled **`NOT MEASURED`**.

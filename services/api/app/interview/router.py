@@ -73,6 +73,30 @@ def _authenticate_interview(
     raise HTTPException(401, "Missing or invalid authorization credentials")
 
 
+@router.post("/v1/interviews/dev-session")
+def create_dev_interview_session():
+    """Create an ephemeral interview session for local development testing without committing keys."""
+    s = get_settings()
+    if not (s.dev_mode or s.debug):
+        raise HTTPException(403, "Dev sessions are only permitted when DEV_MODE=1 or DEBUG=1")
+    raw_token = new_token()
+    token_hash = hash_key(raw_token)
+    ttl_s = 24 * 3600
+    iv = db.create_interview(
+        tenant_id="dev_tenant",
+        candidate_id="dev-candidate",
+        token_hash=token_hash,
+        ttl_s=ttl_s,
+        metadata={"source": "overlay_dev_quick_connect"}
+    )
+    return {
+        "interview_id": iv["id"],
+        "token": raw_token,
+        "expires_at": iv["expires_at"],
+        "candidate_id": iv["candidate_id"]
+    }
+
+
 @router.post("/v1/interviews")
 def create_interview_session(body: CreateInterview, tenant: dict = Depends(require_interview_tenant)):
     """Create a new interview verification session for an interviewer."""

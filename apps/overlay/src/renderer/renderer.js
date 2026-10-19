@@ -117,11 +117,25 @@ async function attemptConnect() {
     const paramToken = urlParams.get("token");
     const paramExpires = urlParams.get("expires_at");
 
-    const sessionPayload = launchSession || (paramId && paramToken ? {
+    let sessionPayload = launchSession || (paramId && paramToken ? {
       interviewId: paramId,
       token: paramToken,
       expiresAt: paramExpires ? parseInt(paramExpires) : null
     } : null);
+
+    if (!sessionPayload) {
+      try {
+        const devRes = await fetch("http://127.0.0.1:8000/v1/interviews/dev-session", { method: "POST" });
+        if (devRes.ok) {
+          const devData = await devRes.json();
+          sessionPayload = {
+            interviewId: devData.interview_id,
+            token: devData.token,
+            expiresAt: devData.expires_at
+          };
+        }
+      } catch (_) {}
+    }
 
     if (sessionPayload && sessionPayload.interviewId && sessionPayload.token) {
       const res = await window.ryouu.connectInterview(sessionPayload);

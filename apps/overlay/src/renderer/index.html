@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src http://127.0.0.1:* http://localhost:* https:; img-src 'self' data: blob:; media-src 'self' blob:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RyouU — Live Interview Integrity Signals</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="appContainer" class="app-container">
+    
+    <!-- 1. COMPACT DOCK PILL (Shown when minimized) -->
+    <div id="compactPill" class="compact-pill hidden" title="Click expand to open full signals drawer">
+      <div class="pill-drag-region drag-region" title="Drag overlay">
+        <span class="pill-pulse-dot" id="compactDot"></span>
+        <span class="pill-brand-text">RyouU</span>
+      </div>
+      <div class="pill-status-capsule" id="compactStatusBadge">
+        <span id="compactStatusText">ALL SIGNALS CLEAR</span>
+      </div>
+      <div class="pill-app-chip" id="compactAppText">Zoom</div>
+      <button id="compactExpandBtn" class="pill-icon-btn no-drag" title="Expand Details" aria-label="Expand">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+      </button>
+    </div>
+
+    <!-- 2. FULL DRAWER PANEL (Default rich view) -->
+    <div id="fullPanel" class="full-panel">
+      
+      <!-- Top Window Titlebar -->
+      <header class="panel-header drag-region">
+        <div class="header-brand">
+          <div class="brand-shield-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <div class="brand-text-wrap">
+            <span class="brand-name">RyouU</span>
+            <span class="brand-badge">LIVE INTEGRITY</span>
+          </div>
+        </div>
+
+        <div class="header-controls no-drag">
+          <div id="meetingAppBadge" class="app-badge-chip" title="Detected Meeting Application">
+            <span class="app-live-dot"></span>
+            <span id="meetingAppName">Detecting...</span>
+          </div>
+          <button id="minimizeBtn" class="control-btn" title="Minimize to floating pill" aria-label="Minimize">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+          <button id="closeBtn" class="control-btn close" title="Quit overlay" aria-label="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Scrollable Main Content -->
+      <main class="panel-body">
+
+        <!-- A. VIDEO PLAYER TILE WITH TIMELINE MARKERS & FLOATING SIGNAL PILL -->
+        <section class="video-preview-card" id="videoPreviewCard">
+          <div class="video-viewport" id="videoViewport">
+            <!-- Floating Top-Left AI Interviewer Badge with SVG Sparkle -->
+            <div class="ai-interviewer-badge">
+              <div class="glowing-orb"></div>
+              <svg class="ai-sparkle-svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/>
+              </svg>
+              <span>AI Interviewer</span>
+            </div>
+
+            <!-- Offscreen Video rendering on canvas -->
+            <canvas id="cropCanvas" class="crop-preview-canvas"></canvas>
+
+            <!-- Interactive/Realistic candidate preview placeholder when tile not yet captured -->
+            <div class="video-placeholder" id="videoPlaceholder">
+              <div class="candidate-avatar-preview">
+                <div class="candidate-avatar-ring">
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                </div>
+                <div class="candidate-audio-wave">
+                  <span></span><span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+              <p class="placeholder-text">Candidate Stream Ready · Click <strong>Select Tile</strong> below to link meeting window</p>
+            </div>
+
+            <!-- Floating "Signal Detected" Speech Pill with Pointer (Initially hidden until anomaly detected) -->
+            <div id="signalDetectedTooltip" class="signal-detected-pill hidden">
+              <span class="signal-dot"></span>
+              <span id="signalTooltipText">Signal Detected</span>
+              <div class="pill-pointer"></div>
+            </div>
+
+            <!-- Stylized Reference Cursor Hover Pointer (Initially hidden until anomaly detected) -->
+            <div class="timeline-cursor-pointer hidden" id="timelineCursorPointer">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="#8B5CF6">
+                <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Video Timeline Control Bar -->
+          <div class="video-control-bar">
+            <button id="timelinePlayBtn" class="play-btn" title="Toggle monitoring playback">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </button>
+            <span id="timelineTimestamp" class="timeline-time">00:00 / 00:25</span>
+
+            <!-- Interactive Timeline Scrub Track with Milestones -->
+            <div class="timeline-track-wrap" id="timelineTrackWrap">
+              <div class="timeline-track">
+                <div class="timeline-progress" id="timelineProgress" style="width: 0%;"></div>
+                <!-- Milestone Star Marker (Pure SVG Star) -->
+                <div class="timeline-marker star" title="Round 1 Verified Baseline" style="left: 0%;">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                </div>
+                <!-- Alert Shield Marker (Hidden until anomaly detected) -->
+                <div id="timelineAlertMarker" class="timeline-marker alert hidden" style="left: 65%;" title="Integrity Signal Anomaly Detected">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                  <span class="alert-excl">!</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- B. INTEGRITY SIGNALS OVERVIEW CARD -->
+        <section class="signals-overview-card">
+          <!-- Card Header -->
+          <div class="signals-header">
+            <div class="signals-title-group">
+              <span class="shield-badge-icon">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              </span>
+              <h2 class="signals-heading">Integrity Signals Overview</h2>
+            </div>
+            <span id="sessionOverallPill" class="session-status-pill idle">READY TO MONITOR</span>
+          </div>
+
+          <!-- Top Metric Summary Capsules (Authenticity & Meeting App Status) -->
+          <div class="metric-capsules-row">
+            <!-- Capsule 1: Authenticity (Pending until analysis) -->
+            <div class="metric-capsule authenticity" id="capsuleAuthenticity">
+              <div class="capsule-icon-wrap auth">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+              </div>
+              <div class="capsule-data">
+                <span class="capsule-label">Authenticity</span>
+                <span id="capsuleAuthVal" class="capsule-value pending">Pending Analysis</span>
+              </div>
+            </div>
+
+            <!-- Capsule 2: Meeting App / Stream Connection -->
+            <div class="metric-capsule network" id="capsuleNetwork">
+              <div class="capsule-icon-wrap net">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+              </div>
+              <div class="capsule-data">
+                <span class="capsule-label">Meeting Feed</span>
+                <span id="capsuleNetVal" class="capsule-value pending">Ready</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recommended Interviewer Action Callout Banner -->
+          <div id="recommendationBanner" class="recommendation-callout idle">
+            <div class="callout-lead">
+              <span class="callout-icon" id="recIcon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+              </span>
+              <div class="callout-text-wrap">
+                <span class="callout-subhead">INTERVIEWER GUIDANCE</span>
+                <p id="recActionText" class="callout-action">Select candidate video tile and click "Record 25s" (or "Auto-Monitor") to analyze integrity signals.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- CATEGORY 1: AUTHENTICITY & BIOMETRICS -->
+          <div class="signal-category-block">
+            <div class="category-header">
+              <span class="category-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+              </span>
+              <span class="category-title">AUTHENTICITY & BIOMETRICS</span>
+            </div>
+            <div class="category-items">
+              
+              <!-- 1. Deepfake (Visual) -->
+              <div class="signal-item-card" id="item-deepfake_video">
+                <div class="signal-item-main" data-toggle="deepfake_video">
+                  <div class="signal-item-left">
+                    <div class="item-icon-circle auth">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </div>
+                    <span class="signal-item-name">Deepfake (Visual)</span>
+                  </div>
+                  <div class="signal-item-right">
+                    <span class="signal-count-badge pending" id="count-deepfake_video">—</span>
+                    <div class="signal-bars" id="bars-deepfake_video">
+                      <span class="bar bar-1"></span>
+                      <span class="bar bar-2"></span>
+                      <span class="bar bar-3"></span>
+                      <span class="bar bar-4"></span>
+                    </div>
+                    <span class="chevron-icon">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                  </div>
+                </div>
+                <div class="signal-item-drawer hidden" id="drawer-deepfake_video">
+                  <div class="drawer-content">
+                    <div class="drawer-bullet">
+                      <span class="bullet-dot" id="dot-deepfake_video"></span>
+                      <span id="detail-deepfake_video" class="bullet-text">No analysis performed yet. Click "Record 25s" or "Auto-Monitor" to analyze this signal.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. Voice Authenticity -->
+              <div class="signal-item-card" id="item-voice_auth">
+                <div class="signal-item-main" data-toggle="voice_auth">
+                  <div class="signal-item-left">
+                    <div class="item-icon-circle voice">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                    </div>
+                    <span class="signal-item-name">Voice Authenticity</span>
+                  </div>
+                  <div class="signal-item-right">
+                    <span class="signal-count-badge pending" id="count-voice_auth">—</span>
+                    <div class="signal-bars" id="bars-voice_auth">
+                      <span class="bar bar-1"></span>
+                      <span class="bar bar-2"></span>
+                      <span class="bar bar-3"></span>
+                      <span class="bar bar-4"></span>
+                    </div>
+                    <span class="chevron-icon">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                  </div>
+                </div>
+                <div class="signal-item-drawer hidden" id="drawer-voice_auth">
+                  <div class="drawer-content">
+                    <div class="drawer-bullet">
+                      <span class="bullet-dot" id="dot-voice_auth"></span>
+                      <span id="detail-voice_auth" class="bullet-text">No analysis performed yet. Click "Record 25s" or "Auto-Monitor" to analyze this signal.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. Speaker Verification -->
+              <div class="signal-item-card" id="item-voice_id">
+                <div class="signal-item-main" data-toggle="voice_id">
+                  <div class="signal-item-left">
+                    <div class="item-icon-circle speaker">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="9" cy="7" r="4"></circle><path d="M17 11v6"></path><path d="M20 14h-6"></path><path d="M1 21v-2a4 4 0 0 1 4-4h8"></path></svg>
+                    </div>
+                    <span class="signal-item-name">Speaker Verification</span>
+                  </div>
+                  <div class="signal-item-right">
+                    <span class="signal-count-badge pending" id="count-voice_id">—</span>
+                    <div class="signal-bars" id="bars-voice_id">
+                      <span class="bar bar-1"></span>
+                      <span class="bar bar-2"></span>
+                      <span class="bar bar-3"></span>
+                      <span class="bar bar-4"></span>
+                    </div>
+                    <span class="chevron-icon">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                  </div>
+                </div>
+                <div class="signal-item-drawer hidden" id="drawer-voice_id">
+                  <div class="drawer-content">
+                    <div class="drawer-bullet">
+                      <span class="bullet-dot" id="dot-voice_id"></span>
+                      <span id="detail-voice_id" class="bullet-text">No analysis performed yet. Click "Record 25s" or "Auto-Monitor" to analyze this signal.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4. Facial Identity Continuity -->
+              <div class="signal-item-card" id="item-face_id">
+                <div class="signal-item-main" data-toggle="face_id">
+                  <div class="signal-item-left">
+                    <div class="item-icon-circle face">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><line x1="15" y1="8" x2="17" y2="8"></line><line x1="15" y1="12" x2="17" y2="12"></line><line x1="7" y1="16" x2="17" y2="16"></line></svg>
+                    </div>
+                    <span class="signal-item-name">Facial Identity Continuity</span>
+                  </div>
+                  <div class="signal-item-right">
+                    <span class="signal-count-badge pending" id="count-face_id">—</span>
+                    <div class="signal-bars" id="bars-face_id">
+                      <span class="bar bar-1"></span>
+                      <span class="bar bar-2"></span>
+                      <span class="bar bar-3"></span>
+                      <span class="bar bar-4"></span>
+                    </div>
+                    <span class="chevron-icon">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                  </div>
+                </div>
+                <div class="signal-item-drawer hidden" id="drawer-face_id">
+                  <div class="drawer-content">
+                    <div class="drawer-bullet">
+                      <span class="bullet-dot" id="dot-face_id"></span>
+                      <span id="detail-face_id" class="bullet-text">No analysis performed yet. Click "Record 25s" or "Auto-Monitor" to analyze this signal.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CATEGORY 2: FEED INTEGRITY & BEHAVIOR -->
+          <div class="signal-category-block">
+            <div class="category-header">
+              <span class="category-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+              </span>
+              <span class="category-title">FEED INTEGRITY & BEHAVIOR</span>
+            </div>
+            <div class="category-items">
+              
+              <!-- 5. Second Person / Proxy -->
+              <div class="signal-item-card" id="item-second_person">
+                <div class="signal-item-main" data-toggle="second_person">
+                  <div class="signal-item-left">
+                    <div class="item-icon-circle second">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    </div>
+                    <span class="signal-item-name">Second Person / Proxy</span>
+                  </div>
+                  <div class="signal-item-right">
+                    <span class="signal-count-badge pending" id="count-second_person">—</span>
+                    <div class="signal-bars" id="bars-second_person">
+                      <span class="bar bar-1"></span>
+                      <span class="bar bar-2"></span>
+                      <span class="bar bar-3"></span>
+                      <span class="bar bar-4"></span>
+                    </div>
+                    <span class="chevron-icon">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                  </div>
+                </div>
+                <div class="signal-item-drawer hidden" id="drawer-second_person">
+                  <div class="drawer-content">
+                    <div class="drawer-bullet">
+                      <span class="bullet-dot" id="dot-second_person"></span>
+                      <span id="detail-second_person" class="bullet-text">No analysis performed yet. Click "Record 25s" or "Auto-Monitor" to analyze this signal.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 6. Lip Synchronization -->
+              <div class="signal-item-card" id="item-lip_sync">
+                <div class="signal-item-main" data-toggle="lip_sync">
+                  <div class="signal-item-left">
+                    <div class="item-icon-circle lipsync">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                    </div>
+                    <span class="signal-item-name">Lip Synchronization</span>
+                  </div>
+                  <div class="signal-item-right">
+                    <span class="signal-count-badge pending" id="count-lip_sync">—</span>
+                    <div class="signal-bars" id="bars-lip_sync">
+                      <span class="bar bar-1"></span>
+                      <span class="bar bar-2"></span>
+                      <span class="bar bar-3"></span>
+                      <span class="bar bar-4"></span>
+                    </div>
+                    <span class="chevron-icon">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                  </div>
+                </div>
+                <div class="signal-item-drawer hidden" id="drawer-lip_sync">
+                  <div class="drawer-content">
+                    <div class="drawer-bullet">
+                      <span class="bullet-dot" id="dot-lip_sync"></span>
+                      <span id="detail-lip_sync" class="bullet-text">No analysis performed yet. Click "Record 25s" or "Auto-Monitor" to analyze this signal.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 7. Loop & Freeze Detection -->
+              <div class="signal-item-card" id="item-loop">
+                <div class="signal-item-main" data-toggle="loop">
+                  <div class="signal-item-left">
+                    <div class="item-icon-circle loop">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    </div>
+                    <span class="signal-item-name">Loop & Freeze Detection</span>
+                  </div>
+                  <div class="signal-item-right">
+                    <span class="signal-count-badge pending" id="count-loop">—</span>
+                    <div class="signal-bars" id="bars-loop">
+                      <span class="bar bar-1"></span>
+                      <span class="bar bar-2"></span>
+                      <span class="bar bar-3"></span>
+                      <span class="bar bar-4"></span>
+                    </div>
+                    <span class="chevron-icon">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                  </div>
+                </div>
+                <div class="signal-item-drawer hidden" id="drawer-loop">
+                  <div class="drawer-content">
+                    <div class="drawer-bullet">
+                      <span class="bullet-dot" id="dot-loop"></span>
+                      <span id="detail-loop" class="bullet-text">No analysis performed yet. Click "Record 25s" or "Auto-Monitor" to analyze this signal.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Timeline Strip of Rounds -->
+          <div class="rounds-history-strip">
+            <div class="history-header">
+              <span class="category-title">INTERVIEW ROUNDS TIMELINE</span>
+              <span id="roundsCountLabel" class="history-count">0 Rounds Completed</span>
+            </div>
+            <div class="timeline-pills-wrap" id="timelineChips">
+              <div class="empty-timeline-msg">Click "Record 25s" or "Start Auto-Monitor" to begin.</div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Sticky Elevated Bottom Action Footer -->
+      <footer class="panel-footer">
+        <div class="footer-btn-grid">
+          <button id="selectRegionBtn" class="action-btn select" title="Select candidate video window tile">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+            <span id="regionBtnText">Select Tile</span>
+          </button>
+          <button id="recordOnceBtn" class="action-btn record" title="Record and analyze single 25-second clip">
+            <span class="record-dot"></span>
+            <span id="recordBtnText">Record 25s</span>
+          </button>
+          <button id="autoMonitorBtn" class="action-btn auto" title="Toggle automatic 60s background monitoring">
+            <span id="autoMonitorIcon">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </span>
+            <span id="autoMonitorBtnText">Auto-Monitor</span>
+          </button>
+          <button id="exportReportBtn" class="action-btn report" title="Export HTML verification report">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            <span>Report</span>
+          </button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Offscreen Capture Video and Stream Elements -->
+  <video id="captureVideo" playsinline autoplay muted style="display:none;"></video>
+  <input type="hidden" id="candidateIdField" value="candidate-001" />
+
+  <script src="renderer.js"></script>
+</body>
+</html>

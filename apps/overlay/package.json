@@ -1,0 +1,40 @@
+{
+  "name": "ryouu-overlay",
+  "version": "1.0.0",
+  "description": "RyouU Real-Time Interview Integrity Monitoring Overlay",
+  "main": "src/main/main.js",
+  "author": "RyouU Team",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.ryouu.overlay",
+    "productName": "RyouU Overlay",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Utility"
+    }
+  }
+}

@@ -41,11 +41,21 @@ CREATE TABLE IF NOT EXISTS media_hashes (
 CREATE TABLE IF NOT EXISTS face_embeddings (
   id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT, reference_id TEXT, vid TEXT,
   embedding_json TEXT, face_hash TEXT, created_at REAL);
+CREATE TABLE IF NOT EXISTS interviews (
+  id TEXT PRIMARY KEY, tenant_id TEXT, candidate_id TEXT, token_hash TEXT,
+  status TEXT, metadata TEXT, face_baseline TEXT, speaker_id TEXT,
+  created_at REAL, expires_at REAL, updated_at REAL);
+CREATE TABLE IF NOT EXISTS interview_clips (
+  id TEXT PRIMARY KEY, interview_id TEXT, round INTEGER, status TEXT,
+  metadata TEXT, video_path TEXT, audio_path TEXT, results TEXT,
+  recommendation TEXT, action TEXT, created_at REAL);
 CREATE INDEX IF NOT EXISTS idx_ver_tenant ON verifications(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_otp ON otps(vid, channel);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON pipeline_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_media_hashes ON media_hashes(tenant_id, file_hash);
 CREATE INDEX IF NOT EXISTS idx_face_emb ON face_embeddings(tenant_id, reference_id);
+CREATE INDEX IF NOT EXISTS idx_interview_tenant ON interviews(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_interview_clips ON interview_clips(interview_id, round);
 """
 
 PG_SCHEMA = """
@@ -77,7 +87,22 @@ CREATE TABLE IF NOT EXISTS media_hashes (
 CREATE TABLE IF NOT EXISTS face_embeddings (
   id SERIAL PRIMARY KEY, tenant_id TEXT, reference_id TEXT, vid TEXT,
   embedding_json TEXT, face_hash TEXT, created_at DOUBLE PRECISION);
+CREATE TABLE IF NOT EXISTS interviews (
+  id TEXT PRIMARY KEY, tenant_id TEXT, candidate_id TEXT, token_hash TEXT,
+  status TEXT, metadata TEXT, face_baseline TEXT, speaker_id TEXT,
+  created_at DOUBLE PRECISION, expires_at DOUBLE PRECISION, updated_at DOUBLE PRECISION);
+CREATE TABLE IF NOT EXISTS interview_clips (
+  id TEXT PRIMARY KEY, interview_id TEXT, round INTEGER, status TEXT,
+  metadata TEXT, video_path TEXT, audio_path TEXT, results TEXT,
+  recommendation TEXT, action TEXT, created_at DOUBLE PRECISION);
 CREATE INDEX IF NOT EXISTS idx_ver_tenant ON verifications(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_otp ON otps(vid, channel);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON pipeline_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_media_hashes ON media_hashes(tenant_id, file_hash);
+CREATE INDEX IF NOT EXISTS idx_face_emb ON face_embeddings(tenant_id, reference_id);
+CREATE INDEX IF NOT EXISTS idx_interview_tenant ON interviews(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_interview_clips ON interview_clips(interview_id, round);
+
 CREATE INDEX IF NOT EXISTS idx_otp ON otps(vid, channel);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON pipeline_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_media_hashes ON media_hashes(tenant_id, file_hash);
@@ -545,4 +570,114 @@ def get_active_verification_by_ref(tenant_id: str, reference_id: str) -> Optiona
         if rows:
             return _parse_ver(_row(rows[0]))
     return None
+
+
+# ---------------- Interviews (Meeting Overlay) ----------------
+def _parse_interview(row) -> Optional[dict]:
+    if not row:
+        return None
+    d = dict(row)
+    for k, default in (("metadata", {}), ("face_baseline", None)):
+        d[k] = json.loads(d[k]) if d.get(k) else default
+    return d
+
+
+def _parse_clip(row) -> Optional[dict]:
+    if not row:
+        return None
+    d = dict(row)
+    for k, default in (("metadata", {}), ("results", [])):
+        d[k] = json.loads(d[k]) if d.get(k) else default
+    return d
+
+
+def get_candidate_kyc_face(tenant_id: str, candidate_id: str) -> Optional[list]:
+    """Retrieve verified face embedding from candidate's completed KYC verification."""
+    if not candidate_id:
+        return None
+    with conn() as c:
+        row = c.execute(
+            """SELECT embedding_json FROM face_embeddings
+               WHERE tenant_id=? AND reference_id=?
+               ORDER BY created_at DESC LIMIT 1""",
+            (tenant_id, candidate_id)
+        ).fetchone()
+        if row and row[0]:
+            try:
+                return json.loads(row[0])
+            except Exception:
+                pass
+    return None
+
+
+def create_interview(tenant_id: str, candidate_id: Optional[str], token_hash: str, ttl_s: float, metadata: dict = None) -> dict:
+    iid = "iv_" + uuid.uuid4().hex[:20]
+    now = time.time()
+    meta = metadata or {}
+    with conn() as c:
+        c.execute(
+            """INSERT INTO interviews (id, tenant_id, candidate_id, token_hash, status, metadata,
+               face_baseline, speaker_id, created_at, expires_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (iid, tenant_id, candidate_id, token_hash, "active", _j(meta), None, None, now, now + ttl_s, now)
+        )
+    return get_interview(iid)
+
+
+def get_interview(interview_id: str) -> Optional[dict]:
+    with conn() as c:
+        return _parse_interview(c.execute("SELECT * FROM interviews WHERE id=?", (interview_id,)).fetchone())
+
+
+def update_interview(interview_id: str, **kwargs) -> Optional[dict]:
+    if not kwargs:
+        return get_interview(interview_id)
+    fields = []
+    vals = []
+    for k, v in kwargs.items():
+        fields.append(f"{k}=?")
+        vals.append(_j(v) if isinstance(v, (dict, list)) else v)
+    vals.extend([time.time(), interview_id])
+    with conn() as c:
+        c.execute(f"UPDATE interviews SET {', '.join(fields)}, updated_at=? WHERE id=?", tuple(vals))
+    return get_interview(interview_id)
+
+
+def create_interview_clip(interview_id: str, round_num: int, metadata: dict, video_path: str = "", audio_path: str = "") -> dict:
+    clip_id = "clip_" + uuid.uuid4().hex[:20]
+    now = time.time()
+    with conn() as c:
+        c.execute(
+            """INSERT INTO interview_clips (id, interview_id, round, status, metadata, video_path,
+               audio_path, results, recommendation, action, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (clip_id, interview_id, round_num, "pending", _j(metadata), video_path, audio_path, _j([]), "processing", "Analyzing clip signals", now)
+        )
+    return get_interview_clip(clip_id)
+
+
+def get_interview_clip(clip_id: str) -> Optional[dict]:
+    with conn() as c:
+        return _parse_clip(c.execute("SELECT * FROM interview_clips WHERE id=?", (clip_id,)).fetchone())
+
+
+def update_interview_clip(clip_id: str, **kwargs) -> Optional[dict]:
+    if not kwargs:
+        return get_interview_clip(clip_id)
+    fields = []
+    vals = []
+    for k, v in kwargs.items():
+        fields.append(f"{k}=?")
+        vals.append(_j(v) if isinstance(v, (dict, list)) else v)
+    vals.append(clip_id)
+    with conn() as c:
+        c.execute(f"UPDATE interview_clips SET {', '.join(fields)} WHERE id=?", tuple(vals))
+    return get_interview_clip(clip_id)
+
+
+def list_interview_clips(interview_id: str) -> List[dict]:
+    with conn() as c:
+        rows = c.execute("SELECT * FROM interview_clips WHERE interview_id=? ORDER BY round ASC, created_at ASC", (interview_id,)).fetchall()
+        return [_parse_clip(r) for r in rows if r]
+
 

@@ -38,6 +38,7 @@ data/.encryption_key
 *.onnx
 *.pt
 *.pth
+*.model
 *.safetensors
 .cache/
 !models/minifasnet_v2.onnx
@@ -62,6 +63,12 @@ Thumbs.db
 /other_person.jpeg
 /selfie1.jpg
 app/static/sample_*
+*.m4a
+*.webm
+*.mp4
+apps/overlay/storage/
+apps/overlay/debug_audio/
+"RyouU Recordings/"
 
 # Android Studio builds & APKs
 *.apk

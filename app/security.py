@@ -134,3 +134,16 @@ def require_flow(vid: str, x_flow_token: Optional[str] = Header(default=None)) -
     if v["expires_at"] < time.time():
         raise HTTPException(410, "Verification link expired")
     return v
+
+
+def require_interview(interview_id: str, x_interview_token: Optional[str] = Header(default=None)) -> dict:
+    """Interviewer desktop overlay auth: per-session token issued on session creation."""
+    iv = db.get_interview(interview_id)
+    if not iv or not x_interview_token:
+        raise HTTPException(404, "Interview session not found")
+    if not hmac.compare_digest(iv["token_hash"], hash_key(x_interview_token)):
+        raise HTTPException(401, "Invalid interview session token")
+    if iv["expires_at"] < time.time():
+        raise HTTPException(410, "Interview session expired")
+    return iv
+

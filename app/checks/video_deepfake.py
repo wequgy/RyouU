@@ -106,6 +106,9 @@ def face_crops(frames, margin=0.25) -> List[np.ndarray]:
     return out
 
 
+crop_faces_from_frames = face_crops
+
+
 def score_crops_vit(crops: List[np.ndarray]) -> List[float]:
     """Calculate fake probability for face crops using ViT detector."""
     import torch

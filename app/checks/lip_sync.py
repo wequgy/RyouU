@@ -45,7 +45,6 @@ def _load_syncnet_pipeline():
         cfg = PipelineConfig(
             s3fd_weights=str(S3FD_WEIGHTS_PATH),
             syncnet_weights=str(SYNCNET_WEIGHTS_PATH),
-            device="cpu",
         )
         _PIPELINE = SyncNetPipeline(cfg)
     return _PIPELINE

@@ -101,3 +101,19 @@ class Signals(BaseModel):
 class ReviewBody(BaseModel):
     decision: str                     # approved | rejected
     note: Optional[str] = Field(default=None, max_length=1000)
+
+
+# ---------- Interview Overlay Models ----------
+class CreateInterview(BaseModel):
+    candidate_id: Optional[str] = Field(default=None, max_length=128)
+    metadata: dict = Field(default_factory=dict)
+    ttl_hours: Optional[int] = Field(default=24, ge=1, le=168)
+
+
+class ClipMetadata(BaseModel):
+    timestamp: Optional[float] = None
+    round: int = Field(default=1, ge=1)
+    meeting_app: Optional[str] = None
+    resolution: Optional[str] = None
+    fps: Optional[float] = None
+

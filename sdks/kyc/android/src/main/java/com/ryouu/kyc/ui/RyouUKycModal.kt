@@ -11,6 +11,8 @@ import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -316,7 +318,11 @@ fun RyouUKycModal(
                             val existing = KycWebViewHolder.webView
                             if (existing != null) {
                                 (existing.parent as? ViewGroup)?.removeView(existing)
-                                existing
+                                existing.apply {
+                                    webViewInstance = this
+                                    KycWebViewHolder.webView = this
+                                    loadUrl(flowUrl!!)
+                                }
                             } else {
                                 WebView(ctx).apply {
                                     layoutParams = ViewGroup.LayoutParams(
@@ -354,7 +360,12 @@ fun RyouUKycModal(
                                         "AndroidBridge"
                                     )
 
-                                    webViewClient = object : WebViewClient() {}
+                                    webViewClient = object : WebViewClient() {
+                                        override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                                            super.onReceivedError(view, request, error)
+                                            android.util.Log.e("RyouUKyc", "WebView error: ${error?.description} (${error?.errorCode}) on ${request?.url}")
+                                        }
+                                    }
 
                                     webChromeClient = object : WebChromeClient() {
                                         override fun onPermissionRequest(request: PermissionRequest) {
@@ -393,7 +404,7 @@ fun RyouUKycModal(
                             }
                         },
                         update = { wv ->
-                            if (wv.url == null && flowUrl != null) {
+                            if (flowUrl != null && (wv.url == null || wv.url != flowUrl)) {
                                 wv.loadUrl(flowUrl!!)
                             }
                         },
